@@ -20,8 +20,8 @@ pub mod unnamed {
     };
 
     /// An "unnamed" [`sem_t`](
-    /// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/semaphore.h.html) that can only
-    /// be used safely.
+    /// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/semaphore.h.html)
+    /// that can only be used safely.
     ///
     /// This must remain pinned for and after [`Self::init_with()`], because it's not clear if
     /// moving a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using
@@ -131,7 +131,7 @@ pub mod unnamed {
                         // will be properly visible to other threads that do `Self::sem_ref`.
                         self.state.store(Self::READY, Release);
                         #[allow(clippy::expect_used)]
-                        Ok(self.sem_ref().expect("the `Semaphore` should be ready"))
+                        Ok(self.sem_ref().expect("the `Semaphore` is ready"))
                     } else {
                         Err(false)
                     }
@@ -218,8 +218,8 @@ pub mod unnamed {
 
     impl SemaphoreRef<'_> {
         /// Like [`sem_post`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_post.html), and
-        /// async-signal-safe like that.
+        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_post.html),
+        /// and async-signal-safe like that.
         ///
         /// It is safe for this to be called from a signal handler.  That is a primary use-case
         /// for POSIX Semaphores versus other better synchronization APIs (which shouldn't be used
