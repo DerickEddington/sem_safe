@@ -9,6 +9,7 @@ pub mod unnamed {
     use core::{
         cell::UnsafeCell,
         fmt::{self, Debug, Display, Formatter},
+        hint,
         marker::PhantomPinned,
         mem::MaybeUninit,
         pin::Pin,
@@ -163,6 +164,45 @@ pub mod unnamed {
                 Ok(SemaphoreRef(sem))
             } else {
                 Err(())
+            }
+        }
+
+        /// Like [`Self::try_init_with`] but uses `is_shared = false` and `sem_count = 0`, similar
+        /// to [`Self::init`].
+        #[must_use]
+        #[inline]
+        pub fn try_init(self: Pin<&Self>, limit: u64) -> Option<SemaphoreRef<'_>> {
+            self.try_init_with(limit, false, 0)
+        }
+
+        /// Try to initialize `self`, repeatedly if necessary, if not already initialized, and
+        /// return a reference to it.
+        ///
+        /// Will spin-loop waiting until it's initialized, up to the given `limit` of retries.
+        #[must_use]
+        #[inline]
+        pub fn try_init_with(
+            self: Pin<&Self>,
+            mut limit: u64,
+            is_shared: bool,
+            sem_count: libc::c_uint,
+        ) -> Option<SemaphoreRef<'_>> {
+            match self.init_with(is_shared, sem_count) {
+                Ok(sem_ref) => Some(sem_ref),
+                Err(true) => loop {
+                    // It was already initialized or another thread was in the middle of
+                    // initializing it.
+                    if let Ok(sem_ref) = self.sem_ref() {
+                        break Some(sem_ref); // Initialization ready.
+                    }
+                    // Not yet initialized by the other thread.
+                    limit = limit.saturating_sub(1);
+                    if limit == 0 {
+                        break None; // Waited too long. Something is wrong, probably failed.
+                    }
+                    hint::spin_loop();
+                },
+                Err(false) => None, // Initialization failed.
             }
         }
 
