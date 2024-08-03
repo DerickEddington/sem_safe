@@ -20,13 +20,14 @@ pub mod unnamed {
     };
 
     /// An "unnamed" [`sem_t`](
-    /// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/semaphore.h.html) that can only
-    /// be used safely.
+    /// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/semaphore.h.html)
+    /// that can only be used safely.
     ///
     /// This must remain pinned for and after [`Self::init_with()`], because it's not clear if
     /// moving a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using
     /// this as a `static` item (not as `mut`able) is a common way to achieve that (via
     /// [`Pin::static_ref`]).  Or, [`pin!`](core::pin::pin) can also work.
+    #[must_use]
     #[derive(Debug)]
     pub struct Semaphore {
         inner: MaybeUninit<UnsafeCell<libc::sem_t>>,
@@ -55,7 +56,6 @@ pub mod unnamed {
         ///
         /// The only operations that can be done with a new instance are to
         /// [initialize](Self::init) it (which first requires pinning it) or drop it.
-        #[must_use]
         #[inline]
         pub const fn new() -> Self {
             Self {
@@ -89,7 +89,8 @@ pub mod unnamed {
         /// # Errors
         /// Returns `Err(true)` if the initialization was already successfully done, or is being
         /// done, by another call (perhaps by another thread).  Returns `Err(false)` if the call
-        /// tried to do the initialization but there was an error with that.
+        /// tried to do the initialization but there was an error with that, in which case `errno`
+        /// is set to indicate the error.
         #[allow(
             clippy::missing_inline_in_public_items,
             clippy::unwrap_in_result,
@@ -131,7 +132,7 @@ pub mod unnamed {
                         // will be properly visible to other threads that do `Self::sem_ref`.
                         self.state.store(Self::READY, Release);
                         #[allow(clippy::expect_used)]
-                        Ok(self.sem_ref().expect("the `Semaphore` should be ready"))
+                        Ok(self.sem_ref().expect("the `Semaphore` is ready"))
                     } else {
                         Err(false)
                     }
@@ -141,6 +142,9 @@ pub mod unnamed {
         }
 
         /// Get a [`SemaphoreRef`] to `self`, so that semaphore operations can be done on `self`.
+        ///
+        /// This function is async-signal-safe, and so it's safe for this to be called from a
+        /// signal handler.
         ///
         /// # Errors
         /// If `self` was not previously initialized.
@@ -195,7 +199,11 @@ pub mod unnamed {
         fn drop(&mut self) {
             fn pinned_drop(this: Pin<&mut Semaphore>) {
                 if let Ok(sem) = this.into_ref().sem_ref() {
-                    // `self` was `sem_init`ed, so it should be `sem_destroy`ed.
+                    // `self` was `sem_init`ed, so it should be `sem_destroy`ed.  Because a value
+                    // can only be dropped if there are no borrows of or into it, this guarantees
+                    // that there are no `SemaphoreRef`s to `self`, and so this guarantees that
+                    // there are no waiters blocked on `self`, and so this guarantees that the
+                    // `sem_destroy()` will not fail.
                     sem.destroy();
                 }
             }
@@ -218,8 +226,8 @@ pub mod unnamed {
 
     impl SemaphoreRef<'_> {
         /// Like [`sem_post`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_post.html), and
-        /// async-signal-safe like that.
+        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_post.html),
+        /// and async-signal-safe like that.
         ///
         /// It is safe for this to be called from a signal handler.  That is a primary use-case
         /// for POSIX Semaphores versus other better synchronization APIs (which shouldn't be used
@@ -242,6 +250,8 @@ pub mod unnamed {
         /// Like [`sem_wait`](
         /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_wait.html).
         ///
+        /// Might block the calling thread.
+        ///
         /// # Errors
         /// If `sem_wait()` does.  `errno` is set to indicate the error.  Its `EINVAL` case should
         /// be impossible.
@@ -258,6 +268,8 @@ pub mod unnamed {
 
         /// Like [`sem_trywait`](
         /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_trywait.html).
+        ///
+        /// Might block the calling thread.
         ///
         /// # Errors
         /// If `sem_trywait()` does.  `errno` is set to indicate the error.  Its `EINVAL` case

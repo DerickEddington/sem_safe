@@ -1,12 +1,16 @@
 #![cfg(test)] // Suppress `clippy::tests_outside_test_module` lint.
-#![allow(clippy::std_instead_of_core, clippy::unwrap_used, unused_results)]
+#![allow(
+    clippy::unwrap_used,
+    unused_results,
+    unused_crate_dependencies // Ignore the lib crate's deps that are supplied here also.
+)]
 
-use sem_safe::unnamed::Semaphore;
-use std::{
+use core::{
     pin::{pin, Pin},
-    thread::{self, sleep},
     time::Duration,
 };
+use sem_safe::unnamed::Semaphore;
+use std::thread::{self, sleep};
 
 #[test]
 fn common() {

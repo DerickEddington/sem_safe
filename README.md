@@ -10,15 +10,15 @@ of them.
 
 ```rust
 use sem_safe::unnamed::Semaphore;
-# use std::{pin::Pin, thread};
+use std::{pin::Pin, thread};
 
 static SEMAPHORE: Semaphore = Semaphore::new();
 
 fn main() {
     let sem = Pin::static_ref(&SEMAPHORE);
     let sem = sem.init().unwrap();
-    thread::spawn(move || sem.wait().unwrap());
-    sem.post().unwrap();
+    thread::spawn(move || sem.post().unwrap());
+    sem.wait().unwrap();
 }
 ```
 
