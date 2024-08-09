@@ -8,6 +8,7 @@ core::compile_error!("Only supported on POSIX.");
 pub mod unnamed {
     use core::{
         cell::UnsafeCell,
+        ffi::{c_int, c_uint},
         fmt::{self, Debug, Display, Formatter},
         hint,
         marker::PhantomPinned,
@@ -50,8 +51,8 @@ pub mod unnamed {
         const PREPARING: u8 = 1;
         const READY: u8 = 2;
         // These values are decided by the `sem_init` documentation.
-        const SINGLE_PROCESS_PRIVATE: libc::c_int = 0;
-        const MULTI_PROCESS_SHARED: libc::c_int = 1;
+        const SINGLE_PROCESS_PRIVATE: c_int = 0;
+        const MULTI_PROCESS_SHARED: c_int = 1;
 
         /// Create an uninitialized `sem_t`.
         ///
@@ -100,7 +101,7 @@ pub mod unnamed {
         pub fn init_with(
             self: Pin<&Self>,
             is_shared: bool,
-            sem_count: libc::c_uint,
+            sem_count: c_uint,
         ) -> Result<SemaphoreRef<'_>, bool> {
             // Since our crate is `no_std`, `Once` or `OnceLock` are not available in only the
             // `core` lib, so we do our own once-ness with an atomic.
@@ -185,7 +186,7 @@ pub mod unnamed {
             self: Pin<&Self>,
             mut limit: u64,
             is_shared: bool,
-            sem_count: libc::c_uint,
+            sem_count: c_uint,
         ) -> Option<SemaphoreRef<'_>> {
             match self.init_with(is_shared, sem_count) {
                 Ok(sem_ref) => Some(sem_ref),
@@ -331,8 +332,8 @@ pub mod unnamed {
         /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_getvalue.html).
         #[must_use]
         #[inline]
-        pub fn get_value(&self) -> libc::c_int {
-            let mut sval = libc::c_int::MIN;
+        pub fn get_value(&self) -> c_int {
+            let mut sval = c_int::MIN;
             // SAFETY: The arguments are valid, because the `Semaphore` was initialized.
             let r = unsafe { libc::sem_getvalue(self.0.get(), &mut sval) };
             debug_assert_eq!(r, 0, "the `sem_t` should be valid");

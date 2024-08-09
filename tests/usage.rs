@@ -71,7 +71,10 @@ fn init_only_once() {
 fn init_failure() {
     static SEMAPHORE: Semaphore = Semaphore::new();
     let semaphore = Pin::static_ref(&SEMAPHORE);
-    assert_eq!(semaphore.init_with(true, libc::c_uint::MAX), Err(false));
+    assert_eq!(
+        semaphore.init_with(true, core::ffi::c_uint::MAX),
+        Err(false)
+    );
 }
 
 // Note: Run this test with --show-output to see the formatting.

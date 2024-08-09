@@ -3,7 +3,7 @@ name = "sem_safe"
 version = "0.0.1-pre"
 authors = ["Derick Eddington"]
 edition = "2021"
-rust-version = "1.56"  # The tests require 1.68
+rust-version = "1.64"  # The tests require 1.68
 description = "Safe usage of POSIX Semaphores (`sem_post`, `sem_wait`, etc)."
 keywords = ["semaphore", "synchronization", "signals", "unix", "no_std"]
 categories = ["api-bindings", "concurrency", "os::unix-apis", "no-std::no-alloc"]
@@ -12,6 +12,8 @@ repository = "https://app.radicle.xyz/nodes/ash.radicle.garden/rad:zUAeNZN24JCzN
 readme = "README.md"
 
 [dependencies]
+# This crate is only internal implementation detail that could be replaced with another that
+# provides equivalent capabilities as needed.
 libc = { version = "0.2.155", default-features = false }
 
 [lints.rust]
