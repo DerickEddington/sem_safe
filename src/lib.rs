@@ -22,7 +22,7 @@ pub mod unnamed {
     };
 
     /// An "unnamed" [`sem_t`](
-    /// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/semaphore.h.html)
+    /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
     /// that can only be used safely.
     ///
     /// This must remain pinned for and after [`Self::init_with()`], because it's not clear if
@@ -81,7 +81,7 @@ pub mod unnamed {
         }
 
         /// Do [`sem_init()`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_init.html)
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_init.html)
         /// on an underlying `sem_t`, and return a [`SemaphoreRef`] to it.
         ///
         /// Usually this should only be called once.  But this guards against multiple calls on
@@ -267,7 +267,7 @@ pub mod unnamed {
 
     impl SemaphoreRef<'_> {
         /// Like [`sem_post`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_post.html),
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_post.html),
         /// and async-signal-safe like that.
         ///
         /// It is safe for this to be called from a signal handler.  That is a primary use-case
@@ -289,7 +289,7 @@ pub mod unnamed {
         }
 
         /// Like [`sem_wait`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_wait.html).
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_wait.html).
         ///
         /// Might block the calling thread.
         ///
@@ -308,7 +308,7 @@ pub mod unnamed {
         }
 
         /// Like [`sem_trywait`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_trywait.html).
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_trywait.html).
         ///
         /// Might block the calling thread.
         ///
@@ -327,9 +327,10 @@ pub mod unnamed {
         }
 
         // TODO: `Self::timedwait` that uses `sem_timedwait`.
+        // TODO?: `Self::clockwait` that uses the new `sem_clockwait`?
 
         /// Like [`sem_getvalue`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_getvalue.html).
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_getvalue.html).
         #[must_use]
         #[inline]
         pub fn get_value(&self) -> c_int {
@@ -341,7 +342,7 @@ pub mod unnamed {
         }
 
         /// Like [`sem_destroy`](
-        /// https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_destroy.html).
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_destroy.html).
         /// Not public.  Only used when dropping `Semaphore`.
         fn destroy(&self) {
             // SAFETY: The argument is valid, because the `Semaphore` was initialized.

@@ -1,9 +1,9 @@
 # `sem_safe`
 
 A Rust-ified, but direct, interface to [POSIX Semaphores](
-https://pubs.opengroup.org/onlinepubs/9699919799/xrat/V4_xsh_chap02.html#tag_22_02_08_03)
+https://pubs.opengroup.org/onlinepubs/9799919799/xrat/V4_xsh_chap01.html#tag_22_02_08_03)
 that enforces safe [usage](
-https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/semaphore.h.html)
+https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
 of them.
 
 # Example
@@ -25,7 +25,7 @@ fn main() {
 # Motivation
 
 POSIX Semaphores, in particular the [`sem_post`](
-https://pubs.opengroup.org/onlinepubs/9699919799/functions/sem_post.html)
+https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_post.html)
 function, are especially useful for an async-signal handler to wake a blocked thread, because
 `sem_post()` is async-signal-safe (in contrast to many thread-waking APIs, such as channels, that
 don't guarantee this).  Signal handlers still need to be very careful that everything else they do
