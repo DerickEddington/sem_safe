@@ -65,9 +65,29 @@ provides solutions to, are:
   prevents destroying a semaphore when there still are potential use-sites.
 
 - It's not clear if moving a `sem_t` value is permitted after it's been initialized with
-  `sem_init()`.  This crate uses `Pin`ning to enforce that the values can't be moved after having
-  been initialized.
+  `sem_init()`.  The OpenIndiana man page says that "copies" (which would be at addresses
+  different than where initialized) would be undefined, which might imply that moved values could
+  also be.  This crate uses `Pin`ning to enforce that the values can't be moved after having been
+  initialized.
 
 - The `sem_init()` must only be done once to a `sem_t`.  This crate uses atomics directly (because
   this crate is `no_std`) to enforce this, even if there are additional calls and perhaps from
   multiple threads concurrently.
+
+# Portability
+
+This library was confirmed to build and pass its tests on (x86_64 only so far):
+
+- Linux
+  - Alpine 3.18 (uses musl)
+  - Debian 12
+  - NixOS 24.05
+  - Ubuntu 23.10
+- BSD
+  - FreeBSD 14.0
+  - NetBSD 9.1
+- Solaris
+  - OpenIndiana 2023.10
+
+It might already work on further POSIX OSs.  If not, adding support for other POSIX OSs should be
+easy but might require making tweaks to this library's conditional compilation and/or linking.

@@ -67,14 +67,14 @@ fn init_only_once() {
     assert_eq!(semaphore.init(), Err(true));
 }
 
+#[cfg(not(target_os = "netbsd"))] // NetBSD's SEM_VALUE_MAX == UINT_MAX
 #[test]
 fn init_failure() {
     static SEMAPHORE: Semaphore = Semaphore::new();
     let semaphore = Pin::static_ref(&SEMAPHORE);
-    assert_eq!(
-        semaphore.init_with(true, core::ffi::c_uint::MAX),
-        Err(false)
-    );
+    // This value exceeds `SEM_VALUE_MAX` and so will cause an `EINVAL` error.
+    let excessive_value = core::ffi::c_uint::MAX;
+    assert_eq!(semaphore.init_with(true, excessive_value), Err(false));
 }
 
 // Note: Run this test with --show-output to see the formatting.
