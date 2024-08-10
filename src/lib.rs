@@ -6,20 +6,16 @@ core::compile_error!("Only supported on POSIX.");
 
 /// Unnamed semaphores.
 pub mod unnamed {
-    use core::{
-        cell::UnsafeCell,
-        ffi::{c_int, c_uint},
-        fmt::{self, Debug, Display, Formatter},
-        hint,
-        marker::PhantomPinned,
-        mem::MaybeUninit,
-        pin::Pin,
-        ptr,
-        sync::atomic::{
-            AtomicU8,
-            Ordering::{Acquire, Relaxed, Release},
-        },
-    };
+    use core::{cell::UnsafeCell,
+               ffi::{c_int, c_uint},
+               fmt::{self, Debug, Display, Formatter},
+               hint,
+               marker::PhantomPinned,
+               mem::MaybeUninit,
+               pin::Pin,
+               ptr,
+               sync::atomic::{AtomicU8,
+                              Ordering::{Acquire, Relaxed, Release}}};
 
     /// An "unnamed" [`sem_t`](
     /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
@@ -34,7 +30,7 @@ pub mod unnamed {
     pub struct Semaphore {
         inner: MaybeUninit<UnsafeCell<libc::sem_t>>,
         state: AtomicU8,
-        _pin: PhantomPinned,
+        _pin:  PhantomPinned,
     }
 
     /// SAFETY: The POSIX Semaphores API intends for `sem_t` to be shared between threads and its
@@ -63,7 +59,7 @@ pub mod unnamed {
             Self {
                 inner: MaybeUninit::uninit(),
                 state: AtomicU8::new(Self::UNINITIALIZED),
-                _pin: PhantomPinned,
+                _pin:  PhantomPinned,
             }
         }
 
@@ -138,7 +134,7 @@ pub mod unnamed {
                     } else {
                         Err(false)
                     }
-                }
+                },
                 Err(_) => Err(true),
             }
         }
@@ -230,9 +226,7 @@ pub mod unnamed {
 
     impl Default for Semaphore {
         #[inline]
-        fn default() -> Self {
-            Self::new()
-        }
+        fn default() -> Self { Self::new() }
     }
 
     impl Drop for Semaphore {
@@ -258,9 +252,9 @@ pub mod unnamed {
     #[derive(Copy, Clone)]
     pub struct SemaphoreRef<'l>(Pin<&'l UnsafeCell<libc::sem_t>>);
 
-    /// SAFETY: The POSIX Semaphores API intends for `sem_t *` to be shared between threads and its
-    /// operations are thread-safe (similar to atomic types).  Therefore we can expose this in
-    /// Rust as having "interior mutability".
+    /// SAFETY: The POSIX Semaphores API intends for `sem_t *` to be shared between threads and
+    /// its operations are thread-safe (similar to atomic types).  Therefore we can expose
+    /// this in Rust as having "interior mutability".
     unsafe impl Sync for SemaphoreRef<'_> {}
     /// SAFETY: Ditto.
     unsafe impl Send for SemaphoreRef<'_> {}
@@ -354,9 +348,7 @@ pub mod unnamed {
     /// Compare by `sem_t *` pointer equality.
     impl PartialEq for SemaphoreRef<'_> {
         #[inline]
-        fn eq(&self, other: &Self) -> bool {
-            ptr::eq(self.0.get(), other.0.get())
-        }
+        fn eq(&self, other: &Self) -> bool { ptr::eq(self.0.get(), other.0.get()) }
     }
     impl Eq for SemaphoreRef<'_> {}
 

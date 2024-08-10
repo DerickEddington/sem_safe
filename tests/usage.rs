@@ -5,10 +5,8 @@
     unused_crate_dependencies // Ignore the lib crate's deps that are supplied here also.
 )]
 
-use core::{
-    pin::{pin, Pin},
-    time::Duration,
-};
+use core::{pin::{pin, Pin},
+           time::Duration};
 use sem_safe::unnamed::Semaphore;
 use std::thread::{self, sleep};
 
