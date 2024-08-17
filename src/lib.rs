@@ -304,7 +304,7 @@ pub mod unnamed {
         /// Like [`sem_trywait`](
         /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_trywait.html).
         ///
-        /// Might block the calling thread.
+        /// Won't block the calling thread.
         ///
         /// # Errors
         /// If `sem_trywait()` does.  `errno` is set to indicate the error.  Its `EINVAL` case
