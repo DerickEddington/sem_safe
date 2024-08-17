@@ -6,6 +6,7 @@
 )]
 
 use core::{pin::{pin, Pin},
+           sync::atomic::{AtomicI32, Ordering::Relaxed},
            time::Duration};
 use sem_safe::unnamed::Semaphore;
 use std::thread::{self, sleep};
@@ -95,4 +96,27 @@ fn fmt() {
         dbg!(semaphore.sem_ref()).unwrap();
         println!("Displayed ref: {}", semaphore.sem_ref().unwrap());
     }
+}
+
+
+#[test]
+fn memory_ordering() {
+    static SEMAPHORE: Semaphore = Semaphore::new();
+    static ANOTHER_OBJECT: AtomicI32 = AtomicI32::new(1);
+
+    let semaphore = Pin::static_ref(&SEMAPHORE).init().unwrap();
+
+    let t = thread::spawn(move || {
+        semaphore.wait().unwrap();
+        // `sem_wait()` synchronizes memory with `sem_post()`, and so the store done by our other
+        // thread, before its `sem_post()`, will be visible to us now.
+        assert_eq!(2, ANOTHER_OBJECT.load(Relaxed));
+    });
+
+    ANOTHER_OBJECT.store(2, Relaxed);
+    // `sem_post()` synchronizes memory with `sem_wait()`, and so the preceding store done by us
+    // will be visible to our other thread when it returns from `sem_wait()`.
+    semaphore.post().unwrap();
+
+    t.join().unwrap();
 }

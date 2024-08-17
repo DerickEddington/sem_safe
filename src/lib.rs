@@ -262,6 +262,17 @@ pub mod unnamed {
     /// SAFETY: Ditto.
     unsafe impl Send for SemaphoreRef<'_> {}
 
+    macro_rules! mem_sync_of_wait_et_al {
+        () => {
+        "\n\nThis synchronizes memory with respect to other threads on all successful calls.  \
+        That is a primary use-case so that other threads' memory writes to other objects, \
+        sequenced before [`Self::post()`], will be visible to the current thread \
+        after returning from this.  If this returns an error, it is unspecified whether the \
+        invocation causes memory to be synchronized.  (See: [POSIX's requirements](\
+        https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html#tag_04_15_02))"
+        }
+    }
+
     impl SemaphoreRef<'_> {
         /// Like [`sem_post`](
         /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_post.html),
@@ -270,6 +281,14 @@ pub mod unnamed {
         /// It is safe for this to be called from a signal handler.  That is a primary use-case
         /// for POSIX Semaphores versus other better synchronization APIs (which shouldn't be used
         /// in signal handlers).
+        ///
+        /// This synchronizes memory with respect to other threads on all successful calls.  That
+        /// is a primary use-case so that memory writes to other objects, sequenced before a call
+        /// to this, will be visible to other threads after returning from [`Self::wait()`] (et
+        /// al).  If this returns an error, it is unspecified whether the invocation causes memory
+        /// to be synchronized.  (See: [POSIX's requirements](
+        /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html#tag_04_15_02)
+        /// )
         ///
         /// # Errors
         /// If `sem_post()` does.  `errno` is set to indicate the error.  Its `EINVAL` case should
@@ -289,6 +308,7 @@ pub mod unnamed {
         /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_wait.html).
         ///
         /// Might block the calling thread.
+        #[doc = mem_sync_of_wait_et_al!()]
         ///
         /// # Errors
         /// If `sem_wait()` does.  `errno` is set to indicate the error.  Its `EINVAL` case should
@@ -308,6 +328,7 @@ pub mod unnamed {
         /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_trywait.html).
         ///
         /// Won't block the calling thread.
+        #[doc = mem_sync_of_wait_et_al!()]
         ///
         /// # Errors
         /// If `sem_trywait()` does.  `errno` is set to indicate the error.  Its `EINVAL` case
@@ -325,6 +346,7 @@ pub mod unnamed {
 
         // TODO: `Self::timedwait` that uses `sem_timedwait`.
         // TODO?: `Self::clockwait` that uses the new `sem_clockwait`?
+        // TODO: The doc-comments for those will also need `#[doc = mem_sync_of_wait_et_al!()]`.
 
         /// Like [`sem_getvalue`](
         /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_getvalue.html).
