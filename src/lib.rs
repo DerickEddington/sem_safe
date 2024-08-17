@@ -4,6 +4,7 @@
 #[cfg(not(unix))]
 core::compile_error!("Only supported on POSIX.");
 
+
 /// Unnamed semaphores.
 pub mod unnamed {
     use core::{cell::UnsafeCell,
@@ -16,6 +17,7 @@ pub mod unnamed {
                ptr,
                sync::atomic::{AtomicU8,
                               Ordering::{Acquire, Relaxed, Release}}};
+
 
     /// An "unnamed" [`sem_t`](
     /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
@@ -246,6 +248,7 @@ pub mod unnamed {
             pinned_drop(unsafe { Pin::new_unchecked(self) });
         }
     }
+
 
     /// Like a `sem_t *` to a `sem_t` that is known to be initialized and so valid to do
     /// operations on.

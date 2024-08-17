@@ -76,18 +76,18 @@ provides solutions to, are:
 
 # Portability
 
-This library was confirmed to build and pass its tests on (x86_64 only so far):
+This crate was confirmed to build and pass its tests on (x86_64 only so far):
 
+- BSD
+  - FreeBSD 14.0
+  - NetBSD 9.1
 - Linux
   - Alpine 3.18 (uses musl)
   - Debian 12
   - NixOS 24.05
   - Ubuntu 23.10
-- BSD
-  - FreeBSD 14.0
-  - NetBSD 9.1
 - Solaris
   - OpenIndiana 2023.10
 
 It might already work on further POSIX OSs.  If not, adding support for other POSIX OSs should be
-easy but might require making tweaks to this library's conditional compilation and/or linking.
+easy but might require making tweaks to this crate's conditional compilation and/or linking.

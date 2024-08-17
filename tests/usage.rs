@@ -10,6 +10,7 @@ use core::{pin::{pin, Pin},
 use sem_safe::unnamed::Semaphore;
 use std::thread::{self, sleep};
 
+
 #[test]
 fn common() {
     static SEMAPHORE: Semaphore = Semaphore::new();
@@ -32,6 +33,7 @@ fn common() {
 
     main();
 }
+
 
 #[test]
 fn rarer() {
@@ -57,6 +59,7 @@ fn rarer() {
     f();
 }
 
+
 #[test]
 fn init_only_once() {
     let semaphore = pin!(Semaphore::new());
@@ -64,6 +67,7 @@ fn init_only_once() {
     semaphore.init().unwrap();
     assert_eq!(semaphore.init(), Err(true));
 }
+
 
 #[cfg(not(target_os = "netbsd"))] // NetBSD's SEM_VALUE_MAX == UINT_MAX
 #[test]
@@ -74,6 +78,7 @@ fn init_failure() {
     let excessive_value = core::ffi::c_uint::MAX;
     assert_eq!(semaphore.init_with(true, excessive_value), Err(false));
 }
+
 
 // Note: Run this test with --show-output to see the formatting.
 #[test]
