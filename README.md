@@ -91,3 +91,10 @@ This crate was confirmed to build and pass its tests on (x86_64 only so far):
 
 It might already work on further POSIX OSs.  If not, adding support for other POSIX OSs should be
 easy but might require making tweaks to this crate's conditional compilation and/or linking.
+
+### macOS Unsupportable
+
+Unfortunately, macOS does not provide the unnamed semaphores API (in violation of modern POSIX
+versions requiring it), and so it's not possible for this crate to work on macOS.  If, in the
+future, this crate adds support for the named semaphores, it looks like that should work on macOS
+because it does provide that.
