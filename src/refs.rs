@@ -1,15 +1,30 @@
+#[cfg(feature = "named")]
+use core::marker::PhantomData;
+#[cfg(feature = "unnamed")]
+use core::pin::Pin;
 use core::{cell::UnsafeCell,
            ffi::c_int,
            fmt::{self, Debug, Display, Formatter},
-           pin::Pin,
            ptr};
 
 
-/// Like a `sem_t *` to a `sem_t` that is known to be initialized and so valid to do operations
-/// on.
+/// Like a `sem_t *` as a borrow of a semaphore that is known to be initialized and so valid to do
+/// operations on.
 #[derive(Copy, Clone)]
-pub struct SemaphoreRef<'l>(pub(crate) Pin<&'l UnsafeCell<libc::sem_t>>);
+pub struct SemaphoreRef<'l>(Kind<'l>);
 
+#[derive(Copy, Clone)]
+enum Kind<'l> {
+    #[cfg(feature = "unnamed")]
+    Unnamed(Pin<&'l UnsafeCell<libc::sem_t>>),
+    #[cfg(feature = "named")]
+    Named(
+        *mut libc::sem_t,
+        // Needed for when this variant is the only variant (otherwise, there'd be an error about
+        // "`'l` is never used").
+        PhantomData<&'l UnsafeCell<libc::sem_t>>,
+    ),
+}
 
 
 /// SAFETY: The POSIX Semaphores API intends for `sem_t *`, after the pointed-to instance is
@@ -33,7 +48,42 @@ macro_rules! mem_sync_of_wait_et_al {
         }
     }
 
-impl SemaphoreRef<'_> {
+impl<'l> SemaphoreRef<'l> {
+    #![cfg_attr(not(feature = "unnamed"), allow(single_use_lifetimes))]
+    #[cfg(feature = "unnamed")]
+    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
+    /// handler.
+    ///
+    /// # Safety
+    /// The given `sem_t` must already have been initialized by `sem_init()`.  (Otherwise,
+    /// becoming a `Self` would allow the operations on it when uninitialized but that would be
+    /// UB.)
+    pub(crate) unsafe fn unnamed(inited: Pin<&'l UnsafeCell<libc::sem_t>>) -> Self {
+        Self(Kind::Unnamed(inited))
+    }
+
+    #[cfg(feature = "named")]
+    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
+    /// handler.
+    ///
+    /// # Safety
+    /// The given `sem_t *` must already have been initialized by `sem_open()`.  (Otherwise,
+    /// becoming a `Self` would allow the operations on it when uninitialized but that would be
+    /// UB.)  The semaphore referenced by `opened` must remain open for the duration of the
+    /// returned `Self`.
+    pub(crate) unsafe fn named(opened: *mut libc::sem_t) -> Self {
+        Self(Kind::Named(opened, PhantomData))
+    }
+
+    fn raw(&self) -> *mut libc::sem_t {
+        match self.0 {
+            #[cfg(feature = "unnamed")]
+            Kind::Unnamed(cell) => cell.get(),
+            #[cfg(feature = "named")]
+            Kind::Named(ptr, _) => ptr,
+        }
+    }
+
     /// Like [`sem_post`](
     /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_post.html),
     /// and async-signal-safe like that.
@@ -55,11 +105,11 @@ impl SemaphoreRef<'_> {
     #[inline]
     pub fn post(&self) -> Result<(), ()> {
         // SAFETY: The argument is valid, because the `Semaphore` was initialized.
-        let r = unsafe { libc::sem_post(self.0.get()) };
+        let r = unsafe { libc::sem_post(self.raw()) };
         if r == 0 {
             Ok(())
         } else {
-            Err(()) // Most likely: EOVERFLOW (max value for a `sem_t` would be exceeded).
+            Err(()) // Most likely: EOVERFLOW (max value for a semaphore would be exceeded).
         }
     }
 
@@ -75,7 +125,7 @@ impl SemaphoreRef<'_> {
     #[inline]
     pub fn wait(&self) -> Result<(), ()> {
         // SAFETY: The argument is valid, because the `Semaphore` was initialized.
-        let r = unsafe { libc::sem_wait(self.0.get()) };
+        let r = unsafe { libc::sem_wait(self.raw()) };
         if r == 0 {
             Ok(())
         } else {
@@ -95,7 +145,7 @@ impl SemaphoreRef<'_> {
     #[inline]
     pub fn try_wait(&self) -> Result<(), ()> {
         // SAFETY: The argument is valid, because the `Semaphore` was initialized.
-        let r = unsafe { libc::sem_trywait(self.0.get()) };
+        let r = unsafe { libc::sem_trywait(self.raw()) };
         if r == 0 {
             Ok(())
         } else {
@@ -114,8 +164,8 @@ impl SemaphoreRef<'_> {
     pub fn get_value(&self) -> c_int {
         let mut sval = c_int::MIN;
         // SAFETY: The arguments are valid, because the `Semaphore` was initialized.
-        let r = unsafe { libc::sem_getvalue(self.0.get(), &mut sval) };
-        debug_assert_eq!(r, 0, "the `sem_t` should be valid");
+        let r = unsafe { libc::sem_getvalue(self.raw(), &mut sval) };
+        debug_assert_eq!(r, 0, "the semaphore should be valid");
         sval
     }
 }
@@ -124,7 +174,7 @@ impl SemaphoreRef<'_> {
 /// Compare by `sem_t *` pointer equality.
 impl PartialEq for SemaphoreRef<'_> {
     #[inline]
-    fn eq(&self, other: &Self) -> bool { ptr::eq(self.0.get(), other.0.get()) }
+    fn eq(&self, other: &Self) -> bool { ptr::eq(self.raw(), other.raw()) }
 }
 
 impl Eq for SemaphoreRef<'_> {}
@@ -134,7 +184,7 @@ impl Eq for SemaphoreRef<'_> {}
 impl Debug for SemaphoreRef<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("SemaphoreRef").field(&self.0.get()).finish()
+        f.debug_tuple("SemaphoreRef").field(&self.raw()).finish()
     }
 }
 

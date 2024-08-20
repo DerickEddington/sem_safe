@@ -46,10 +46,10 @@ within an extremely-limited signal handler.
 
 Signal-handling is not the only use-case.  POSIX Semaphores also enable various patterns of
 coordinating and synchronizing multiple processes, which could be compelling.  This crate provides
-an analogue of the C API that can be used for various other semaphore use-cases.  Currently, only
-the "unnamed" semaphores' API is supported, for both the shared-between-multiple-processes mode or
-the private-to-only-a-single-process mode.  The rest of the API for "timed-wait" and for "named"
-semaphores could be implemented in the future.
+an analogue of the C API that can be used for various other semaphore use-cases.  Both the
+*unnamed* and the *named* semaphores APIs are supported, for both the
+shared-between-multiple-processes mode or the private-to-only-a-single-process mode.  The rest of
+the API for "timed-wait" could be implemented in the future.
 
 Unlike `std::thread` parking, this crate does not require the `std` library, and this crate's
 semaphores can wake multiple threads on a single semaphore, can model resource counts greater than
@@ -62,20 +62,23 @@ The challenges with using POSIX Semaphores safely and in the Rust ways, and what
 provides solutions to, are:
 
 - To share a semaphore between multiple threads, the type must be `Sync`, which requires "interior
-  mutability".  This crate implements its own abstraction over `UnsafeCell<libc::sem_t>` to
-  achieve this, and this also enables values of this type to be global `static` items (not `mut`)
-  which can be convenient, or values of this type can be shorter-lived locals and lifetime-safety
-  is enforced.
+  mutability".  This crate implements its own abstractions over `UnsafeCell<libc::sem_t>` or
+  `*mut libc::sem_t` to achieve this, and this also enables values of these to be global `static`
+  items (not `mut`) which can be convenient, or values of these can be shorter-lived locals and
+  lifetime-safety is enforced.
 
-- The values of the `sem_t` type must start as uninitialized and then be initialized by calling
-  `sem_init()`, before applying any of the other operations to a `sem_t`.  This crate has separate
+- The values of the unnamed `sem_t` type must start as uninitialized and then be initialized by
+  calling `sem_init()`, and the values of the named `sem_t *` must be initialized by calling
+  `sem_open()`, before applying any of the other operations to them.  This crate has separate
   owned `Semaphore` and borrowed `SemaphoreRef` types to enforce that the operations can only be
   done to safe references to initialized values and that the references can only be gotten after
-  pinning and initializing owned values.
+  initializing owned values, which first requires pinning for the unnamed type.  This also ensures
+  thread safety.
 
-- Deinitialization (`sem_destroy()`) is only done when dropping an owned `Semaphore` and only if
-  it was initialized.  Dropping is prevented when there are any `SemaphoreRef`s extant, which
-  prevents destroying a semaphore when there still are potential use-sites.
+- Deinitialization (`sem_destroy()` or (safely) `sem_close()`) is only done when dropping an owned
+  `Semaphore` and only if it was initialized.  Dropping is prevented when there are any
+  `SemaphoreRef`s extant, which prevents invalidating a semaphore when there still are potential
+  use-sites.  This also ensures avoidance of undefined behavior.
 
 - It's not clear if moving a `sem_t` value is permitted after it's been initialized with
   `sem_init()`.  The POSIX and OpenIndiana `man` pages say that "copies" (which would be at
@@ -83,9 +86,9 @@ provides solutions to, are:
   values could also be.  This crate uses `Pin`ning to enforce that the values can't be moved once
   initialized.
 
-- The `sem_init()` must only be done once to a `sem_t`.  This crate uses atomics directly (because
-  this crate is `no_std`) to enforce this, even if there are additional calls and perhaps from
-  multiple threads concurrently.
+- The `sem_init()` must only be done once to a `sem_t`.  Creating an anonymous semaphore must only
+  do `sem_open()` once.  This crate uses atomics directly (because this crate is `no_std`) to
+  enforce this, even if there are additional calls and perhaps from multiple threads concurrently.
 
 # Portability
 
@@ -106,9 +109,10 @@ All glibc- or musl-based Linux OSs should already work.  It might already work o
 OSs.  If not, adding support for other POSIX OSs should be easy but might require making tweaks to
 this crate's conditional compilation and/or linking.
 
-### macOS Unsupportable
+### macOS Partially Unsupportable
 
 Unfortunately, macOS does not provide the unnamed semaphores API (in violation of modern POSIX
-versions requiring it), and so it's not possible for this crate to work on macOS.  If, in the
-future, this crate adds support for the named semaphores, it looks like that should work on macOS
-because it does provide that.
+versions requiring it), and so it's not possible for that aspect of this crate to work on macOS.
+However, this crate's support for the named semaphores does work on macOS because it does provide
+that.  This crate provides a helper to create *anonymous* named semaphores that are mostly like
+unnamed semaphores, for uses of unnamed semaphores that need a workaround on macOS.

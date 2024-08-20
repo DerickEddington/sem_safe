@@ -151,7 +151,12 @@ impl Semaphore {
     /// If `self` was not previously initialized.
     #[allow(clippy::missing_inline_in_public_items)]
     pub fn sem_ref(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, ()> {
-        self.ready_ref().map(SemaphoreRef).ok_or(())
+        self.ready_ref()
+            .map(|sem| {
+                // SAFETY: `Some(sem)` means that `sem` is initialized by `sem_init()`.
+                unsafe { SemaphoreRef::unnamed(sem) }
+            })
+            .ok_or(())
     }
 
     /// This function is async-signal-safe, and so it's safe for this to be called from a signal

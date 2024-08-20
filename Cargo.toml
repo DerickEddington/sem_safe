@@ -11,9 +11,18 @@ license = "Unlicense"
 repository = "https://app.radicle.xyz/nodes/ash.radicle.garden/rad:zUAeNZN24JCzNQ9YVkoxNbw8c8TU"
 readme = "README.md"
 
+[features]
+default = ["unnamed", "named", "anonymous"]
+unnamed = []
+named = ["errno"]
+anonymous = ["named", "getrandom", "base64"]
+
 [dependencies]
-# This crate is only internal implementation detail that could be replaced with another that
-# provides equivalent capabilities as needed.
+# These crates are only internal implementation details that could be replaced with others that
+# provide equivalent capabilities as needed.
+base64 = { version = "0.22.1", default-features = false, optional = true }
+errno = { version = "0.3.9", default-features = false, optional = true }
+getrandom = { version = "0.2.15", default-features = false, features = ["rdrand"], optional = true }
 libc = { version = "0.2.155", default-features = false }
 
 [lints.rust]
