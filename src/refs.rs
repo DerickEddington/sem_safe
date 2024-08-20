@@ -11,9 +11,12 @@ use core::{cell::UnsafeCell,
 pub struct SemaphoreRef<'l>(pub(crate) Pin<&'l UnsafeCell<libc::sem_t>>);
 
 
-/// SAFETY: The POSIX Semaphores API intends for `sem_t *` to be shared between threads and its
-/// operations are thread-safe (similar to atomic types).  Therefore we can expose this in Rust as
-/// having "interior mutability".
+
+/// SAFETY: The POSIX Semaphores API intends for `sem_t *`, after the pointed-to instance is
+/// initialized, to be shared between threads and its operations are thread-safe (similar to
+/// atomic types).  Our API ensures by construction that multiple threads can only operate on a
+/// `sem_t *` after initialization.  Therefore we can expose this in Rust as having "thread-safe
+/// interior mutability".
 unsafe impl Sync for SemaphoreRef<'_> {}
 /// SAFETY: Ditto.
 unsafe impl Send for SemaphoreRef<'_> {}

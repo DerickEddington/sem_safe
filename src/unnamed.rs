@@ -16,26 +16,38 @@ use core::{cell::UnsafeCell,
 /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
 /// that can only be used safely.
 ///
-/// This must remain pinned for and after [`Self::init_with()`], because it's not clear if moving
-/// a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using this as a
-/// `static` item (not as `mut`able) is a common way to achieve that (via [`Pin::static_ref`]).
-/// Or, [`pin!`](core::pin::pin) can also work.
+/// This must remain pinned for and after [`Self::init_with()`], because it's [not clear](
+/// https://pubs.opengroup.org/onlinepubs/9799919799/functions/V2_chap02.html#tag_16_09_09) if
+/// moving a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using this
+/// as a `static` item (not as `mut`able) is a common way to achieve that (via
+/// [`Pin::static_ref`]).  Or, [`pin!`](core::pin::pin) can also work.
 #[must_use]
 #[derive(Debug)]
 pub struct Semaphore {
+    // Note: This deliberately has `MaybeUninit` as the outer type with `UnsafeCell` inside that,
+    // because this better facilitates our need to have `&UnsafeCell<libc::sem_t>` for
+    // `SemaphoreRef`.  This is sound [1][2][3][4].  Transposing them could work but would
+    // require much uglier and more `unsafe` code for our uses.
+    // [1] https://doc.rust-lang.org/core/cell/struct.UnsafeCell.html#method.raw_get
+    // [2] https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.as_ptr
+    // [3] https://github.com/rust-lang/rust/issues/65216#issuecomment-539958078
+    // [4] https://lore.kernel.org/stable/20231106130308.041864552@linuxfoundation.org/
     inner:   MaybeUninit<UnsafeCell<libc::sem_t>>,
     state:   AtomicU8,
     _pinned: PhantomPinned,
 }
 
 
-/// SAFETY: The POSIX Semaphores API intends for `sem_t` to be shared between threads and its
-/// operations are thread-safe (similar to atomic types).  Therefore we can expose this in Rust as
-/// having "interior mutability".
+/// SAFETY: The POSIX Semaphores API intends for `sem_t`, after initialization, to be shared
+/// between threads and its operations are thread-safe (similar to atomic types).  Our API ensures
+/// by construction that multiple threads can only operate on an instance after initialization.
+/// Therefore we can expose this in Rust as having "thread-safe interior mutability".  The other
+/// field is `AtomicU8` which already is `Sync`.
 unsafe impl Sync for Semaphore {}
 
-// Note: `Send` isn't impl'ed, because it's not clear if moving a `sem_t` value is permitted after
-// it's been initialized with `sem_init`.
+// Note: `Send` is already automatically impl'ed.  Note: sending, or otherwise moving, a `sem_t`
+// value is only possible before it's initialized with `Self::init_with()`; and once it's
+// initialized it's pinned and so cannot be moved, and so cannot be sent, thereafter.
 
 
 impl Semaphore {
@@ -62,9 +74,10 @@ impl Semaphore {
 
     /// Like [`Self::init_with`] but uses `is_shared = false` and `sem_count = 0`.
     ///
-    /// This is a common use case to have a `sem_t` that is private to a single process (i.e. not
-    /// shareable between multiple) and that starts with a "resource count" of zero so that
-    /// initial waiting on it blocks waiter threads until a post indicates to wake.
+    /// This is a common use-case to have a semaphore that is private to the calling process
+    /// (i.e. not shared between multiple processes, unless by `fork()`) and that starts with a
+    /// "resource count" of zero so that initial waiting on it blocks waiter threads until a post
+    /// indicates to wake.
     ///
     /// # Errors
     /// Same as [`Self::init_with`].
@@ -141,13 +154,13 @@ impl Semaphore {
         // Do `Acquire` to ensure that the memory writes that `sem_init()` did (in `Self::init`)
         // from another thread will be properly visible in our thread.
         if Self::READY == self.state.load(Acquire) {
-            fn project_inner(it: &Semaphore) -> &UnsafeCell<libc::sem_t> {
+            fn project_inner_init(it: &Semaphore) -> &UnsafeCell<libc::sem_t> {
                 let sem = &it.inner;
                 // SAFETY: `sem` is ready, so it was initialized correctly and successfully.
                 unsafe { MaybeUninit::assume_init_ref(sem) }
             }
             // SAFETY: The `.inner` field is pinned when `self` is.
-            let sem = unsafe { Pin::map_unchecked(self, project_inner) };
+            let sem = unsafe { Pin::map_unchecked(self, project_inner_init) };
             Ok(SemaphoreRef(sem))
         } else {
             Err(())
@@ -196,6 +209,9 @@ impl Semaphore {
     /// Return a value that displays `self`.
     ///
     /// Shows the current count value only if the semaphore has been initialized.
+    ///
+    /// (This is needed because `impl Display for Self` wouldn't work (because of the need to use
+    /// `Self::sem_ref` which needs `Pin<&Self>`).)
     #[must_use]
     #[inline]
     pub fn display(self: Pin<&Self>) -> impl Display + '_ {

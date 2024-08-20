@@ -1,8 +1,8 @@
 # `sem_safe`
 
-A Rust-ified, but direct, interface to [POSIX Semaphores](
+An interface to [POSIX Semaphores](
 https://pubs.opengroup.org/onlinepubs/9799919799/xrat/V4_xsh_chap01.html#tag_22_02_08_03)
-that enforces safe [usage](
+that is Rust-ified, but direct, and `no_std`, and enforces safe [usage](
 https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
 of them.
 
@@ -10,15 +10,26 @@ of them.
 
 ```rust
 use sem_safe::unnamed::Semaphore;
-use std::{pin::Pin, thread};
+use std::{pin::Pin, thread, sync::atomic::{AtomicI32, Ordering::Relaxed}};
 
 static SEMAPHORE: Semaphore = Semaphore::new();
+static THING: AtomicI32 = AtomicI32::new(0);
 
 fn main() {
     let sem = Pin::static_ref(&SEMAPHORE);
     let sem = sem.init().unwrap();
-    thread::spawn(move || sem.post().unwrap());
+
+    thread::spawn(move || {
+        THING.store(1, Relaxed);
+        // It's guaranteed that this thread's preceding writes are always visible to other threads
+        // as happens-before our post is visible to (and possibly wakes) other threads.
+        sem.post().unwrap();
+    });
+
     sem.wait().unwrap();
+    // It's guaranteed that this thread always sees the other thread's write as happens-before
+    // this thread sees the other thread's post (that woke us if we'd waited).
+    assert_eq!(1, THING.load(Relaxed));
 }
 ```
 
@@ -27,25 +38,27 @@ fn main() {
 POSIX Semaphores, in particular the [`sem_post`](
 https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_post.html)
 function, are especially useful for an async-signal handler to wake a blocked thread, because
-`sem_post()` is async-signal-safe (in contrast to many thread-waking APIs, such as channels, that
-don't guarantee this).  Signal handlers still need to be very careful that everything else they do
-is all async-signal-safe (such as only using atomic types to exfiltrate signal information to
-other threads) but `sem_post` provides the critical ability to wake another thread (e.g. to
-further handle the exfiltrated signal info in a normal context without the extreme restrictions of
-async-signal safety).  (One of the very-few alternatives to `sem_post` is the "self-pipe" trick
-where `write()` to a pipe is done from a signal handler, and where blocking `read()` from the
-other end of the pipe is done from the other thread, but that is somewhat messier (due to needing
-to setup the pipes, close-on-exec, non-blocking writes, etc).)
+`sem_post()` is async-signal-safe (in contrast to many thread-waking APIs, such as
+`Thread::unpark` or channels, that don't guarantee this).  `sem_post` provides the critical
+ability to wake another thread (e.g. to further handle exfiltrated representations of the received
+signals in a normal context (without the extreme restrictions of async-signal safety)), from
+within an extremely-limited signal handler.
 
-Signal-handling is not the only use-case.  This crate provides an analogue of the C API that can
-be used for various other semaphore use-cases.  Currently, only the "unnamed" semaphores' API is
-supported, for both the shared-between-multiple-processes mode or the
-private-to-only-a-single-process mode.  The rest of the API for "timed-wait" and for "named"
+Signal-handling is not the only use-case.  POSIX Semaphores also enable various patterns of
+coordinating and synchronizing multiple processes, which could be compelling.  This crate provides
+an analogue of the C API that can be used for various other semaphore use-cases.  Currently, only
+the "unnamed" semaphores' API is supported, for both the shared-between-multiple-processes mode or
+the private-to-only-a-single-process mode.  The rest of the API for "timed-wait" and for "named"
 semaphores could be implemented in the future.
+
+Unlike `std::thread` parking, this crate does not require the `std` library, and this crate's
+semaphores can wake multiple threads on a single semaphore, can model resource counts greater than
+one, can be used between multiple processes, and this crate's `SemaphoreRef::post` guarantees
+async-signal-safety.
 
 # Design
 
-The challenges with using POSIX Semaphores safely according to the Rust ways, and what this crate
+The challenges with using POSIX Semaphores safely and in the Rust ways, and what this crate
 provides solutions to, are:
 
 - To share a semaphore between multiple threads, the type must be `Sync`, which requires "interior
@@ -65,9 +78,9 @@ provides solutions to, are:
   prevents destroying a semaphore when there still are potential use-sites.
 
 - It's not clear if moving a `sem_t` value is permitted after it's been initialized with
-  `sem_init()`.  The OpenIndiana man page says that "copies" (which would be at addresses
-  different than where initialized) would be undefined, which might imply that moved values could
-  also be.  This crate uses `Pin`ning to enforce that the values can't be moved after having been
+  `sem_init()`.  The POSIX and OpenIndiana `man` pages say that "copies" (which would be at
+  addresses different than where initialized) would be undefined, which might imply that moved
+  values could also be.  This crate uses `Pin`ning to enforce that the values can't be moved once
   initialized.
 
 - The `sem_init()` must only be done once to a `sem_t`.  This crate uses atomics directly (because
@@ -89,8 +102,9 @@ This crate was confirmed to build and pass its tests on (x86_64 only so far):
 - Solaris
   - OpenIndiana 2023.10
 
-It might already work on further POSIX OSs.  If not, adding support for other POSIX OSs should be
-easy but might require making tweaks to this crate's conditional compilation and/or linking.
+All glibc- or musl-based Linux OSs should already work.  It might already work on further POSIX
+OSs.  If not, adding support for other POSIX OSs should be easy but might require making tweaks to
+this crate's conditional compilation and/or linking.
 
 ### macOS Unsupportable
 

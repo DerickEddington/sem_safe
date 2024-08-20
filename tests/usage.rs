@@ -65,8 +65,11 @@ fn rarer() {
 fn init_only_once() {
     let semaphore = pin!(Semaphore::new());
     let semaphore = semaphore.into_ref();
+    semaphore.sem_ref().unwrap_err();
     semaphore.init().unwrap();
+    semaphore.sem_ref().unwrap();
     assert_eq!(semaphore.init(), Err(true));
+    semaphore.sem_ref().unwrap();
 }
 
 
@@ -77,7 +80,9 @@ fn init_failure() {
     let semaphore = Pin::static_ref(&SEMAPHORE);
     // This value exceeds `SEM_VALUE_MAX` and so will cause an `EINVAL` error.
     let excessive_value = core::ffi::c_uint::MAX;
+    semaphore.sem_ref().unwrap_err();
     assert_eq!(semaphore.init_with(true, excessive_value), Err(false));
+    semaphore.sem_ref().unwrap_err();
 }
 
 
