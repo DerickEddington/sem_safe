@@ -12,7 +12,7 @@ of them.
 use sem_safe::unnamed::Semaphore;
 use std::{pin::Pin, thread, sync::atomic::{AtomicI32, Ordering::Relaxed}};
 
-static SEMAPHORE: Semaphore = Semaphore::new();
+static SEMAPHORE: Semaphore = Semaphore::uninit();
 static THING: AtomicI32 = AtomicI32::new(0);
 
 fn main() {

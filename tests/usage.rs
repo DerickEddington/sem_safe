@@ -14,7 +14,7 @@ use std::thread::{self, sleep};
 
 #[test]
 fn common() {
-    static SEMAPHORE: Semaphore = Semaphore::new();
+    static SEMAPHORE: Semaphore = Semaphore::uninit();
 
     fn main() {
         let semaphore = Pin::static_ref(&SEMAPHORE);
@@ -40,7 +40,7 @@ fn common() {
 fn rarer() {
     fn f() {
         let val = {
-            let semaphore = pin!(Semaphore::new());
+            let semaphore = pin!(Semaphore::uninit());
             let sem = semaphore.into_ref().init_with(true, 1).unwrap();
             thread::scope(|scope| {
                 scope.spawn(|| {
@@ -63,7 +63,7 @@ fn rarer() {
 
 #[test]
 fn init_only_once() {
-    let semaphore = pin!(Semaphore::new());
+    let semaphore = pin!(Semaphore::uninit());
     let semaphore = semaphore.into_ref();
     semaphore.sem_ref().unwrap_err();
     semaphore.init().unwrap();
@@ -76,7 +76,7 @@ fn init_only_once() {
 #[cfg(not(target_os = "netbsd"))] // NetBSD's SEM_VALUE_MAX == UINT_MAX
 #[test]
 fn init_failure() {
-    static SEMAPHORE: Semaphore = Semaphore::new();
+    static SEMAPHORE: Semaphore = Semaphore::uninit();
     let semaphore = Pin::static_ref(&SEMAPHORE);
     // This value exceeds `SEM_VALUE_MAX` and so will cause an `EINVAL` error.
     let excessive_value = core::ffi::c_uint::MAX;
@@ -90,7 +90,7 @@ fn init_failure() {
 #[test]
 #[allow(clippy::print_stdout, clippy::dbg_macro)]
 fn fmt() {
-    let semaphore = pin!(Semaphore::new());
+    let semaphore = pin!(Semaphore::uninit());
     let semaphore = semaphore.into_ref();
     println!("Displayed uninit: {}", semaphore.display());
     dbg!(semaphore);
@@ -106,7 +106,7 @@ fn fmt() {
 
 #[test]
 fn memory_ordering() {
-    static SEMAPHORE: Semaphore = Semaphore::new();
+    static SEMAPHORE: Semaphore = Semaphore::uninit();
     static ANOTHER_OBJECT: AtomicI32 = AtomicI32::new(1);
 
     let semaphore = Pin::static_ref(&SEMAPHORE).init().unwrap();

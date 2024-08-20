@@ -64,7 +64,7 @@ impl Semaphore {
     /// The only operations that can be done with a new instance are to [initialize](Self::init)
     /// it (which first requires pinning it) or drop it.
     #[inline]
-    pub const fn new() -> Self {
+    pub const fn uninit() -> Self {
         Self {
             inner:   MaybeUninit::uninit(),
             state:   AtomicU8::new(Self::UNINITIALIZED),
@@ -240,7 +240,7 @@ impl Semaphore {
 
 impl Default for Semaphore {
     #[inline]
-    fn default() -> Self { Self::new() }
+    fn default() -> Self { Self::uninit() }
 }
 
 
