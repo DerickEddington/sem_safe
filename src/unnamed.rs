@@ -151,6 +151,13 @@ impl Semaphore {
     /// If `self` was not previously initialized.
     #[allow(clippy::missing_inline_in_public_items)]
     pub fn sem_ref(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, ()> {
+        self.ready_ref().map(SemaphoreRef).ok_or(())
+    }
+
+    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
+    /// handler.
+    fn ready_ref(self: Pin<&Self>) -> Option<Pin<&'_ UnsafeCell<libc::sem_t>>> {
+        #![allow(clippy::if_then_some_else_none)]
         // Do `Acquire` to ensure that the memory writes that `sem_init()` did (in `Self::init`)
         // from another thread will be properly visible in our thread.
         if Self::READY == self.state.load(Acquire) {
@@ -161,9 +168,9 @@ impl Semaphore {
             }
             // SAFETY: The `.inner` field is pinned when `self` is.
             let sem = unsafe { Pin::map_unchecked(self, project_inner_init) };
-            Ok(SemaphoreRef(sem))
+            Some(sem)
         } else {
-            Err(())
+            None
         }
     }
 
@@ -241,13 +248,14 @@ impl Drop for Semaphore {
     #[inline]
     fn drop(&mut self) {
         fn pinned_drop(this: Pin<&mut Semaphore>) {
-            if let Ok(sem) = this.into_ref().sem_ref() {
-                // `self` was `sem_init`ed, so it should be `sem_destroy`ed.  Because a value can
-                // only be dropped if there are no borrows of or into it, this guarantees that
-                // there are no `SemaphoreRef`s to `self`, and so this guarantees that there are
-                // no waiters blocked on `self`, and so this guarantees that the `sem_destroy()`
-                // will not fail.
-                sem.destroy();
+            if let Some(sem) = this.into_ref().ready_ref() {
+                // SAFETY: `sem` was `sem_init`ed, so it should be `sem_destroy`ed.  Because a
+                // value can only be dropped if there are no borrows of or into it, this
+                // guarantees that there are no `SemaphoreRef`s to `self`, and so this guarantees
+                // that there are no waiters blocked on `sem`, and so this guarantees that the
+                // `sem_destroy()` will not fail nor cause undefined behavior.
+                let r = unsafe { libc::sem_destroy(sem.get()) };
+                debug_assert_eq!(r, 0, "the semaphore is valid with no waiters");
             }
         }
         // SAFETY: Okay because we know this value is never used again after being dropped.

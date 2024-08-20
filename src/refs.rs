@@ -118,15 +118,6 @@ impl SemaphoreRef<'_> {
         debug_assert_eq!(r, 0, "the `sem_t` should be valid");
         sval
     }
-
-    /// Like [`sem_destroy`](
-    /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_destroy.html).
-    /// Not public.  Only used when dropping `Semaphore`.
-    pub(crate) fn destroy(&self) {
-        // SAFETY: The argument is valid, because the `Semaphore` was initialized.
-        let r = unsafe { libc::sem_destroy(self.0.get()) };
-        debug_assert_eq!(r, 0, "the `sem_t` should be valid with no waiters");
-    }
 }
 
 
