@@ -16,5 +16,8 @@ pub mod unnamed;
 #[cfg(feature = "named")]
 pub mod named;
 
+#[cfg(feature = "anonymous")]
+pub mod anonymous;
+
 pub(crate) use init_once::InitOnce;
 mod init_once;
