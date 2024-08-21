@@ -15,3 +15,6 @@ pub mod unnamed;
 
 #[cfg(feature = "named")]
 pub mod named;
+
+pub(crate) use init_once::InitOnce;
+mod init_once;

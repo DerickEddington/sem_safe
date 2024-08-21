@@ -1,15 +1,13 @@
 //! Unnamed semaphores.
 
-use crate::SemaphoreRef;
+use crate::{InitOnce, SemaphoreRef};
 use core::{cell::UnsafeCell,
            ffi::{c_int, c_uint},
            fmt::{self, Display, Formatter},
            hint,
            marker::PhantomPinned,
            mem::MaybeUninit,
-           pin::Pin,
-           sync::atomic::{AtomicU8,
-                          Ordering::{Acquire, Relaxed, Release}}};
+           pin::Pin};
 
 
 /// An "unnamed" [`sem_t`](
@@ -32,9 +30,9 @@ pub struct Semaphore {
     // [2] https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.as_ptr
     // [3] https://github.com/rust-lang/rust/issues/65216#issuecomment-539958078
     // [4] https://lore.kernel.org/stable/20231106130308.041864552@linuxfoundation.org/
-    inner:   MaybeUninit<UnsafeCell<libc::sem_t>>,
-    state:   AtomicU8,
-    _pinned: PhantomPinned,
+    inner:     MaybeUninit<UnsafeCell<libc::sem_t>>,
+    init_once: InitOnce,
+    _pinned:   PhantomPinned,
 }
 
 
@@ -42,7 +40,7 @@ pub struct Semaphore {
 /// between threads and its operations are thread-safe (similar to atomic types).  Our API ensures
 /// by construction that multiple threads can only operate on an instance after initialization.
 /// Therefore we can expose this in Rust as having "thread-safe interior mutability".  The other
-/// field is `AtomicU8` which already is `Sync`.
+/// field is `InitOnce` which already is `Sync`.
 unsafe impl Sync for Semaphore {}
 
 // Note: `Send` is already automatically impl'ed.  Note: sending, or otherwise moving, a `sem_t`
@@ -51,10 +49,6 @@ unsafe impl Sync for Semaphore {}
 
 
 impl Semaphore {
-    // These values are decided only internally.
-    const UNINITIALIZED: u8 = 0;
-    const PREPARING: u8 = 1;
-    const READY: u8 = 2;
     // These values are decided by the `sem_init` documentation.
     const SINGLE_PROCESS_PRIVATE: c_int = 0;
     const MULTI_PROCESS_SHARED: c_int = 1;
@@ -66,9 +60,9 @@ impl Semaphore {
     #[inline]
     pub const fn uninit() -> Self {
         Self {
-            inner:   MaybeUninit::uninit(),
-            state:   AtomicU8::new(Self::UNINITIALIZED),
-            _pinned: PhantomPinned,
+            inner:     MaybeUninit::uninit(),
+            init_once: InitOnce::new(),
+            _pinned:   PhantomPinned,
         }
     }
 
@@ -107,38 +101,27 @@ impl Semaphore {
         is_shared: bool,
         sem_count: c_uint,
     ) -> Result<SemaphoreRef<'_>, bool> {
-        // Since our crate is `no_std`, `Once` or `OnceLock` are not available in only the `core`
-        // lib, so we do our own once-ness with an atomic.
-        match self.state.compare_exchange(Self::UNINITIALIZED, Self::PREPARING, Relaxed, Relaxed)
-        {
-            Ok(_) => {
-                // This call is the first, so it does the initialization.
-
-                let sem: *mut libc::sem_t = UnsafeCell::raw_get(MaybeUninit::as_ptr(&self.inner));
-
-                // SAFETY: The arguments are valid.
-                let r = unsafe {
-                    libc::sem_init(
-                        sem,
-                        if is_shared {
-                            Self::MULTI_PROCESS_SHARED
-                        } else {
-                            Self::SINGLE_PROCESS_PRIVATE
-                        },
-                        sem_count,
-                    )
-                };
-                if r == 0 {
-                    // Do `Release` to ensure that the memory writes that `sem_init()` did will be
-                    // properly visible to other threads that do `Self::sem_ref`.
-                    self.state.store(Self::READY, Release);
-                    #[allow(clippy::expect_used)]
-                    Ok(self.sem_ref().expect("the `Semaphore` is ready"))
-                } else {
-                    Err(false)
-                }
-            },
-            Err(_) => Err(true),
+        let r = self.init_once.call_once(|| {
+            let sem: *mut libc::sem_t = UnsafeCell::raw_get(MaybeUninit::as_ptr(&self.inner));
+            // SAFETY: The arguments are valid.
+            let r = unsafe {
+                libc::sem_init(
+                    sem,
+                    if is_shared {
+                        Self::MULTI_PROCESS_SHARED
+                    } else {
+                        Self::SINGLE_PROCESS_PRIVATE
+                    },
+                    sem_count,
+                )
+            };
+            if r == 0 { Ok(()) } else { Err(()) }
+        });
+        match r {
+            #[allow(clippy::expect_used)]
+            Some(Ok(())) => Ok(self.sem_ref().expect("the `Semaphore` is ready")),
+            Some(Err(())) => Err(false),
+            None => Err(true),
         }
     }
 
@@ -163,9 +146,7 @@ impl Semaphore {
     /// handler.
     fn ready_ref(self: Pin<&Self>) -> Option<Pin<&'_ UnsafeCell<libc::sem_t>>> {
         #![allow(clippy::if_then_some_else_none)]
-        // Do `Acquire` to ensure that the memory writes that `sem_init()` did (in `Self::init`)
-        // from another thread will be properly visible in our thread.
-        if Self::READY == self.state.load(Acquire) {
+        if self.init_once.is_ready() {
             fn project_inner_init(it: &Semaphore) -> &UnsafeCell<libc::sem_t> {
                 let sem = &it.inner;
                 // SAFETY: `sem` is ready, so it was initialized correctly and successfully.
