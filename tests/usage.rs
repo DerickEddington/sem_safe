@@ -4,11 +4,22 @@
     unused_results,
     unused_crate_dependencies // Ignore the lib crate's deps that are supplied here also.
 )]
+#[cfg(not(any(feature = "unnamed", feature = "anonymous")))]
+core::compile_error!("This test group needs one of the non-named kinds.");
 
 use core::{pin::{pin, Pin},
            sync::atomic::{AtomicI32, Ordering::Relaxed},
            time::Duration};
+//
+#[cfg(all(not(feature = "plaster"), feature = "anonymous"))]
+use sem_safe::anonymous::Semaphore;
+//
+#[cfg(feature = "plaster")]
+use sem_safe::plaster::non_named::Semaphore;
+//
+#[cfg(all(not(feature = "plaster"), not(feature = "anonymous")))]
 use sem_safe::unnamed::Semaphore;
+//
 use std::thread::{self, sleep};
 
 
@@ -41,7 +52,7 @@ fn rarer() {
     fn f() {
         let val = {
             let semaphore = pin!(Semaphore::uninit());
-            let sem = semaphore.into_ref().init_with(true, 1).unwrap();
+            let sem = semaphore.into_ref().init_with(false, 1).unwrap();
             thread::scope(|scope| {
                 scope.spawn(|| {
                     sem.post().unwrap();
@@ -81,7 +92,7 @@ fn init_failure() {
     // This value exceeds `SEM_VALUE_MAX` and so will cause an `EINVAL` error.
     let excessive_value = core::ffi::c_uint::MAX;
     semaphore.sem_ref().unwrap_err();
-    assert_eq!(semaphore.init_with(true, excessive_value), Err(false));
+    assert_eq!(semaphore.init_with(false, excessive_value), Err(false));
     semaphore.sem_ref().unwrap_err();
 }
 

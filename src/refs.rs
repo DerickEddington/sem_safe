@@ -15,7 +15,7 @@ pub struct SemaphoreRef<'l>(Kind<'l>);
 
 #[derive(Copy, Clone)]
 enum Kind<'l> {
-    #[cfg(feature = "unnamed")]
+    #[cfg(all(feature = "unnamed", not(target_os = "macos")))]
     Unnamed(Pin<&'l UnsafeCell<libc::sem_t>>),
     #[cfg(feature = "named")]
     Named(
@@ -50,7 +50,7 @@ macro_rules! mem_sync_of_wait_et_al {
 
 impl<'l> SemaphoreRef<'l> {
     #![cfg_attr(not(feature = "unnamed"), allow(single_use_lifetimes))]
-    #[cfg(feature = "unnamed")]
+    #[cfg(all(feature = "unnamed", not(target_os = "macos")))]
     /// This function is async-signal-safe, and so it's safe for this to be called from a signal
     /// handler.
     ///
@@ -77,7 +77,7 @@ impl<'l> SemaphoreRef<'l> {
 
     fn raw(&self) -> *mut libc::sem_t {
         match self.0 {
-            #[cfg(feature = "unnamed")]
+            #[cfg(all(feature = "unnamed", not(target_os = "macos")))]
             Kind::Unnamed(cell) => cell.get(),
             #[cfg(feature = "named")]
             Kind::Named(ptr, _) => ptr,

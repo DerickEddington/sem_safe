@@ -12,10 +12,11 @@ repository = "https://app.radicle.xyz/nodes/ash.radicle.garden/rad:zUAeNZN24JCzN
 readme = "README.md"
 
 [features]
-default = ["unnamed", "named", "anonymous"]
-unnamed = []
+default = ["unnamed", "named", "anonymous", "plaster"]
+unnamed = []  # On MacOS, ignored, because not available.
 named = ["errno"]
 anonymous = ["named", "getrandom", "base64"]
+plaster = []  # Provides a uniform "non-named" semaphore abstraction across Mac and all other OSs.
 
 [dependencies]
 # These crates are only internal implementation details that could be replaced with others that

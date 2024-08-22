@@ -9,7 +9,8 @@ of them.
 # Example
 
 ```rust
-use sem_safe::unnamed::Semaphore;
+// (The `Semaphore` type under the `plaster` module enables portability even to macOS.)
+use sem_safe::plaster::non_named::Semaphore;
 use std::{pin::Pin, thread, sync::atomic::{AtomicI32, Ordering::Relaxed}};
 
 static SEMAPHORE: Semaphore = Semaphore::uninit();
@@ -111,8 +112,10 @@ this crate's conditional compilation and/or linking.
 
 ### macOS Partially Unsupportable
 
-Unfortunately, macOS does not provide the unnamed semaphores API (in violation of modern POSIX
-versions requiring it), and so it's not possible for that aspect of this crate to work on macOS.
-However, this crate's support for the named semaphores does work on macOS because it does provide
-that.  This crate provides a helper to create *anonymous* named semaphores that are mostly like
-unnamed semaphores, for uses of unnamed semaphores that need a workaround on macOS.
+Unfortunately, macOS (and Mac OS X) does not provide the unnamed semaphores API (in violation of
+modern POSIX versions requiring it), and so it's not possible for that aspect of this crate to
+work on macOS.  However, this crate's support for the named semaphores does work on macOS because
+it does provide that.  This crate provides a helper to create *anonymous* "named" semaphores that
+are mostly like unnamed private semaphores, and this crate provides an abstraction for use across
+all OSs that uses the anonymous or unnamed semaphores depending on the OS's support, for use-cases
+of non-named private semaphores that need a workaround on macOS.
