@@ -1,10 +1,9 @@
 //! Unnamed semaphores.
 
-use crate::{InitOnce, SemaphoreRef};
+use crate::{non_named::{self, InitOnce},
+            SemaphoreRef};
 use core::{cell::UnsafeCell,
            ffi::{c_int, c_uint},
-           fmt::{self, Display, Formatter},
-           hint,
            marker::PhantomPinned,
            mem::MaybeUninit,
            pin::Pin};
@@ -14,10 +13,11 @@ use core::{cell::UnsafeCell,
 /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
 /// that can only be used safely.
 ///
-/// This must remain pinned for and after [`Self::init_with()`], because it's [not clear](
-/// https://pubs.opengroup.org/onlinepubs/9799919799/functions/V2_chap02.html#tag_16_09_09) if
-/// moving a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using this
-/// as a `static` item (not as `mut`able) is a common way to achieve that (via
+/// This must remain pinned for and after [`Self::init_with()`](non_named::Semaphore::init_with),
+/// because it's [not clear](
+/// https://pubs.opengroup.org/onlinepubs/9799919799/functions/V2_chap02.html#tag_16_09_09)
+/// if moving a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using
+/// this as a `static` item (not as `mut`able) is a common way to achieve that (via
 /// [`Pin::static_ref`]).  Or, [`pin!`](core::pin::pin) can also work.
 #[must_use]
 #[derive(Debug)]
@@ -55,8 +55,8 @@ impl Semaphore {
 
     /// Create an uninitialized `sem_t`.
     ///
-    /// The only operations that can be done with a new instance are to [initialize](Self::init)
-    /// it (which first requires pinning it) or drop it.
+    /// The only operations that can be done with a new instance are to [initialize](
+    /// non_named::Semaphore::init_with) it (which first requires pinning it) or drop it.
     #[inline]
     pub const fn uninit() -> Self {
         Self {
@@ -64,82 +64,6 @@ impl Semaphore {
             init_once: InitOnce::new(),
             _pinned:   PhantomPinned,
         }
-    }
-
-    /// Like [`Self::init_with`] but uses `is_shared = false` and `sem_count = 0`.
-    ///
-    /// This is a common use-case to have a semaphore that is private to the calling process
-    /// (i.e. not shared between multiple processes, unless by `fork()`) and that starts with a
-    /// "resource count" of zero so that initial waiting on it blocks waiter threads until a post
-    /// indicates to wake.
-    ///
-    /// # Errors
-    /// Same as [`Self::init_with`].
-    #[inline]
-    pub fn init(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, bool> { self.init_with(false, 0) }
-
-    /// Do [`sem_init()`](
-    /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_init.html)
-    /// on an underlying `sem_t`, and return a [`SemaphoreRef`] to it.
-    ///
-    /// Usually this should only be called once.  But this guards against multiple calls on the
-    /// same instance (perhaps by multiple threads), to ensure the initialization is only done
-    /// once.
-    ///
-    /// # Errors
-    /// Returns `Err(true)` if the initialization was already successfully done, or is being done,
-    /// by another call (perhaps by another thread).  Returns `Err(false)` if the call tried to do
-    /// the initialization but there was an error with that, in which case `errno` is set to
-    /// indicate the error.
-    #[allow(
-        clippy::missing_inline_in_public_items,
-        clippy::unwrap_in_result,
-        clippy::missing_panics_doc
-    )]
-    pub fn init_with(
-        self: Pin<&Self>,
-        is_shared: bool,
-        sem_count: c_uint,
-    ) -> Result<SemaphoreRef<'_>, bool> {
-        let r = self.init_once.call_once(|| {
-            let sem: *mut libc::sem_t = UnsafeCell::raw_get(MaybeUninit::as_ptr(&self.inner));
-            // SAFETY: The arguments are valid.
-            let r = unsafe {
-                libc::sem_init(
-                    sem,
-                    if is_shared {
-                        Self::MULTI_PROCESS_SHARED
-                    } else {
-                        Self::SINGLE_PROCESS_PRIVATE
-                    },
-                    sem_count,
-                )
-            };
-            if r == 0 { Ok(()) } else { Err(()) }
-        });
-        match r {
-            #[allow(clippy::expect_used)]
-            Some(Ok(())) => Ok(self.sem_ref().expect("the `Semaphore` is ready")),
-            Some(Err(())) => Err(false),
-            None => Err(true),
-        }
-    }
-
-    /// Get a [`SemaphoreRef`] to `self`, so that semaphore operations can be done on `self`.
-    ///
-    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
-    /// handler.
-    ///
-    /// # Errors
-    /// If `self` was not previously initialized.
-    #[allow(clippy::missing_inline_in_public_items)]
-    pub fn sem_ref(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, ()> {
-        self.ready_ref()
-            .map(|sem| {
-                // SAFETY: `Some(sem)` means that `sem` is initialized by `sem_init()`.
-                unsafe { SemaphoreRef::unnamed(sem) }
-            })
-            .ok_or(())
     }
 
     /// This function is async-signal-safe, and so it's safe for this to be called from a signal
@@ -159,67 +83,54 @@ impl Semaphore {
             None
         }
     }
+}
 
-    /// Like [`Self::try_init_with`] but uses `is_shared = false` and `sem_count = 0`, similar to
-    /// [`Self::init`].
-    #[must_use]
-    #[inline]
-    pub fn try_init(self: Pin<&Self>, limit: u64) -> Option<SemaphoreRef<'_>> {
-        self.try_init_with(limit, false, 0)
-    }
 
-    /// Try to initialize `self`, repeatedly if necessary, if not already initialized, and return
-    /// a reference to it.
-    ///
-    /// Will spin-loop waiting until it's initialized, up to the given `limit` of retries.
-    #[must_use]
+impl non_named::Sealed for Semaphore {}
+
+impl non_named::Semaphore for Semaphore {
+    /// Do [`sem_init()`](
+    /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_init.html)
+    /// on an underlying `sem_t`, and return a [`SemaphoreRef`] to it.
     #[inline]
-    pub fn try_init_with(
+    #[allow(clippy::unwrap_in_result)]
+    fn init_with(
         self: Pin<&Self>,
-        mut limit: u64,
         is_shared: bool,
         sem_count: c_uint,
-    ) -> Option<SemaphoreRef<'_>> {
-        match self.init_with(is_shared, sem_count) {
-            Ok(sem_ref) => Some(sem_ref),
-            Err(true) => loop {
-                // It was already initialized or another thread was in the middle of initializing
-                // it.
-                if let Ok(sem_ref) = self.sem_ref() {
-                    break Some(sem_ref); // Initialization ready.
-                }
-                // Not yet initialized by the other thread.
-                limit = limit.saturating_sub(1);
-                if limit == 0 {
-                    break None; // Waited too long. Something is wrong, probably failed.
-                }
-                hint::spin_loop();
-            },
-            Err(false) => None, // Initialization failed.
+    ) -> Result<SemaphoreRef<'_>, bool> {
+        let r = self.init_once.call_once(|| {
+            let sem: *mut libc::sem_t = UnsafeCell::raw_get(MaybeUninit::as_ptr(&self.inner));
+            // SAFETY: The arguments are valid.
+            let r = unsafe {
+                libc::sem_init(
+                    sem,
+                    if is_shared {
+                        Semaphore::MULTI_PROCESS_SHARED
+                    } else {
+                        Semaphore::SINGLE_PROCESS_PRIVATE
+                    },
+                    sem_count,
+                )
+            };
+            if r == 0 { Ok(()) } else { Err(()) }
+        });
+        match r {
+            #[allow(clippy::expect_used)]
+            Some(Ok(())) => Ok(self.sem_ref().expect("the `Semaphore` is ready")),
+            Some(Err(())) => Err(false),
+            None => Err(true),
         }
     }
 
-    /// Return a value that displays `self`.
-    ///
-    /// Shows the current count value only if the semaphore has been initialized.
-    ///
-    /// (This is needed because `impl Display for Self` wouldn't work (because of the need to use
-    /// `Self::sem_ref` which needs `Pin<&Self>`).)
-    #[must_use]
     #[inline]
-    pub fn display(self: Pin<&Self>) -> impl Display + '_ {
-        struct Wrap<'l>(Pin<&'l Semaphore>);
-
-        impl Display for Wrap<'_> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-                match self.0.sem_ref() {
-                    Ok(sem) => Display::fmt(&sem, f),
-                    Err(()) => write!(f, "<Semaphore>"),
-                }
-            }
-        }
-
-        Wrap(self)
+    fn sem_ref(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, ()> {
+        self.ready_ref()
+            .map(|sem| {
+                // SAFETY: `Some(sem)` means that `sem` is initialized by `sem_init()`.
+                unsafe { SemaphoreRef::unnamed(sem) }
+            })
+            .ok_or(())
     }
 }
 

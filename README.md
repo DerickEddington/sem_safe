@@ -10,7 +10,7 @@ of them.
 
 ```rust
 // (The `Semaphore` type under the `plaster` module enables portability even to macOS.)
-use sem_safe::plaster::non_named::Semaphore;
+use sem_safe::{plaster::non_named::Semaphore, non_named::Semaphore as _};
 use std::{pin::Pin, thread, sync::atomic::{AtomicI32, Ordering::Relaxed}};
 
 static SEMAPHORE: Semaphore = Semaphore::uninit();

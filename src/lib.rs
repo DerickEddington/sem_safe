@@ -13,6 +13,9 @@ mod refs;
 #[cfg(all(feature = "unnamed", not(target_os = "macos")))]
 pub mod unnamed;
 
+#[cfg(any(feature = "unnamed", feature = "anonymous"))]
+pub mod non_named;
+
 #[cfg(feature = "named")]
 pub mod named;
 
@@ -21,6 +24,3 @@ pub mod anonymous;
 
 #[cfg(feature = "plaster")]
 pub mod plaster;
-
-pub(crate) use init_once::InitOnce;
-mod init_once;

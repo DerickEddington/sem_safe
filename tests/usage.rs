@@ -14,6 +14,8 @@ use core::{pin::{pin, Pin},
 #[cfg(all(not(feature = "plaster"), feature = "anonymous"))]
 use sem_safe::anonymous::Semaphore;
 //
+use sem_safe::non_named::Semaphore as _;
+//
 #[cfg(feature = "plaster")]
 use sem_safe::plaster::non_named::Semaphore;
 //

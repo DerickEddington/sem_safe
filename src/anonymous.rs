@@ -1,9 +1,12 @@
 //! Anonymous "named" semaphores.
 
-use crate::{named, InitOnce, SemaphoreRef};
+use crate::{named,
+            non_named::{self, InitOnce},
+            SemaphoreRef};
 use core::{cell::UnsafeCell,
            ffi::c_uint,
-           fmt::{self, Display, Formatter}};
+           fmt::{self, Display, Formatter},
+           pin::Pin};
 
 
 /// An [anonymous](named::Semaphore::anonymous_with) [`named::Semaphore`] that is used like an
@@ -31,46 +34,23 @@ unsafe impl Sync for Semaphore {}
 // Note: `Send` is already automatically impl'ed.
 
 
-/// The same method names and signatures as [`unnamed::Semaphore`].
-///
-/// Except, these take `&self` instead of `self: Pin<&Self>`, because this type doesn't need to be
-/// `Pin`ned (unlike `unnamed::Semaphore`).  This difference in the `self` type is transparent to
-/// users' code that, depending on conditional compilation (e.g. by using
-/// `plaster::non_named::Semaphore`), uses either this type or `unnamed::Semaphore`.  That
-/// works because `Pin<&Self>` auto-derefs to `&Self`.
-// TODO: verify the above
 impl Semaphore {
     /// Create an uninitialized `sem_t *`.
     ///
-    /// The only operations that can be done with a new instance are to [initialize](Self::init)
-    /// it or drop it.
+    /// The only operations that can be done with a new instance are to [initialize](
+    /// non_named::Semaphore::init_with) it or drop it.
     #[inline]
     pub const fn uninit() -> Self {
         Self { inner: UnsafeCell::new(None), init_once: InitOnce::new() }
     }
+}
 
-    /// Like [`Self::init_with`] but uses `sem_count = 0`.
-    ///
-    /// This is a common use-case to have a semaphore that starts with a "resource count" of zero
-    /// so that initial waiting on it blocks waiter threads until a post indicates to wake.
-    ///
-    /// # Errors
-    /// Same as [`Self::init_with`].
-    #[inline]
-    pub fn init(&self) -> Result<SemaphoreRef<'_>, bool> { self.init_with(false, 0) }
 
+impl non_named::Sealed for Semaphore {}
+
+impl non_named::Semaphore for Semaphore {
     /// Do [`named::Semaphore::anonymous_with()`] to initialize `self`, and return a
     /// [`SemaphoreRef`] to it.
-    ///
-    /// Usually this should only be called once.  But this guards against multiple calls on the
-    /// same instance (perhaps by multiple threads), to ensure the initialization is only done
-    /// once.
-    ///
-    /// # Errors
-    /// Returns `Err(true)` if the initialization was already successfully done, or is being done,
-    /// by another call (perhaps by another thread).  Returns `Err(false)` if the call tried to do
-    /// the initialization but there was an error with that, in which case `errno` is set to
-    /// indicate the error.
     ///
     /// # Panics
     /// If `is_shared == true`.  Anonymous semaphores cannot be shared between multiple processes
@@ -78,13 +58,10 @@ impl Semaphore {
     /// This parameter exists only to have the same function signature as
     /// [`unnamed::Semaphore::init_with`](non_named::Semaphore::init_with), but uses of
     /// it must always be `false`.
-    #[allow(
-        clippy::missing_inline_in_public_items,
-        clippy::unwrap_in_result,
-        clippy::panic_in_result_fn
-    )]
-    pub fn init_with(
-        &self,
+    #[inline]
+    #[allow(clippy::unwrap_in_result, clippy::panic_in_result_fn)]
+    fn init_with(
+        self: Pin<&Self>,
         is_shared: bool,
         sem_count: c_uint,
     ) -> Result<SemaphoreRef<'_>, bool> {
@@ -111,19 +88,9 @@ impl Semaphore {
         }
     }
 
-    /// Get a [`SemaphoreRef`] to `self`, so that semaphore operations can be done on `self`.
-    ///
-    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
-    /// handler.
-    ///
-    /// # Errors
-    /// If `self` was not previously initialized.
-    #[allow(
-        clippy::missing_inline_in_public_items,
-        clippy::unwrap_in_result,
-        clippy::missing_panics_doc
-    )]
-    pub fn sem_ref(&self) -> Result<SemaphoreRef<'_>, ()> {
+    #[inline]
+    #[allow(clippy::unwrap_in_result)]
+    fn sem_ref(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, ()> {
         if self.init_once.is_ready() {
             // SAFETY: After it's been initialized, nothing expects to have exclusive access to
             // `self.inner`'s contents (except our `Drop` impl, but that's sound), so we can have
@@ -143,24 +110,6 @@ impl Semaphore {
             Err(())
         }
     }
-
-    /// Return a value that displays `self`.
-    ///
-    /// Shows the current count value only if the semaphore has been initialized.
-    ///
-    /// This exists only to have the same method as [`unnamed::Semaphore::display`].
-    #[must_use]
-    #[inline]
-    pub fn display(&self) -> impl Display + '_ {
-        struct Wrap<'l>(&'l Semaphore);
-        impl Display for Wrap<'_> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(&self.0, f) }
-        }
-        Wrap(self)
-    }
-
-    // TODO: The same exact API as unnamed::Semaphore, except `&self` instead of `self:
-    // Pin<&Self>`
 }
 
 
@@ -174,8 +123,8 @@ impl Default for Semaphore {
 impl Display for Semaphore {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // TODO: the impl in `unnamed` should be factored-out for reuse.
-        todo!()
+        use crate::non_named::Semaphore as _;
+        Pin::new(self).display().fmt(f)
     }
 }
 
