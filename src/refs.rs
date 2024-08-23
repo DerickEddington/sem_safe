@@ -1,9 +1,10 @@
+#[cfg(not(target_os = "macos"))]
+use core::ffi::c_int;
 #[cfg(feature = "named")]
 use core::marker::PhantomData;
-#[cfg(feature = "unnamed")]
+#[cfg(all(feature = "unnamed", not(target_os = "macos")))]
 use core::pin::Pin;
 use core::{cell::UnsafeCell,
-           ffi::c_int,
            fmt::{self, Debug, Display, Formatter},
            ptr};
 
@@ -49,7 +50,10 @@ macro_rules! mem_sync_of_wait_et_al {
     }
 
 impl<'l> SemaphoreRef<'l> {
-    #![cfg_attr(not(feature = "unnamed"), allow(single_use_lifetimes))]
+    #![cfg_attr(
+        not(all(feature = "unnamed", not(target_os = "macos"))),
+        allow(single_use_lifetimes)
+    )]
     #[cfg(all(feature = "unnamed", not(target_os = "macos")))]
     /// This function is async-signal-safe, and so it's safe for this to be called from a signal
     /// handler.
@@ -157,6 +161,7 @@ impl<'l> SemaphoreRef<'l> {
     // TODO?: `Self::clockwait` that uses the new `sem_clockwait`?
     // TODO: The doc-comments for those will also need `#[doc = mem_sync_of_wait_et_al!()]`.
 
+    #[cfg(not(target_os = "macos"))]
     /// Like [`sem_getvalue`](
     /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_getvalue.html).
     #[must_use]
@@ -188,10 +193,18 @@ impl Debug for SemaphoreRef<'_> {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 /// Human-readable representation that shows the semaphore's current count value.
 impl Display for SemaphoreRef<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "<Semaphore value:{}>", self.get_value())
     }
+}
+
+#[cfg(target_os = "macos")]
+/// Human-readable representation.  Mac doesn't support getting the current count value.
+impl Display for SemaphoreRef<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "<Semaphore inited>") }
 }

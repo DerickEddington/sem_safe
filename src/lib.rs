@@ -3,6 +3,8 @@
 #![allow(clippy::result_unit_err)]
 #[cfg(not(unix))]
 core::compile_error!("Only supported on POSIX.");
+#[cfg(all(target_os = "macos", not(feature = "named"), feature = "unnamed"))]
+core::compile_error!("MacOS doesn't support the \"unnamed\" feature.");
 #[cfg(not(any(feature = "unnamed", feature = "named")))]
 core::compile_error!("Must enable at least one of the kinds of semaphore.");
 

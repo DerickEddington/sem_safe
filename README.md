@@ -103,19 +103,23 @@ This crate was confirmed to build and pass its tests on (x86_64 only so far):
   - Debian 12
   - NixOS 24.05
   - Ubuntu 23.10
+- Mac
+  - 10.13 High Sierra
+  - 12 Monterey
 - Solaris
   - OpenIndiana 2023.10
 
-All glibc- or musl-based Linux OSs should already work.  It might already work on further POSIX
-OSs.  If not, adding support for other POSIX OSs should be easy but might require making tweaks to
-this crate's conditional compilation and/or linking.
+All glibc- or musl-based Linux OSs, and all macOS and Mac OS X versions, should already work.  It
+might already work on further POSIX OSs.  If not, adding support for other POSIX OSs should be
+easy but might require making tweaks to this crate's conditional compilation and/or linking.
 
 ### macOS Partially Unsupportable
 
-Unfortunately, macOS (and Mac OS X) does not provide the unnamed semaphores API (in violation of
-modern POSIX versions requiring it), and so it's not possible for that aspect of this crate to
-work on macOS.  However, this crate's support for the named semaphores does work on macOS because
-it does provide that.  This crate provides a helper to create *anonymous* "named" semaphores that
-are mostly like unnamed private semaphores, and this crate provides an abstraction for use across
-all OSs that uses the anonymous or unnamed semaphores depending on the OS's support, for use-cases
-of non-named private semaphores that need a workaround on macOS.
+Unfortunately, macOS (and Mac OS X) does not provide the unnamed semaphores API nor the
+`sem_getvalue` function (in violation of modern POSIX versions requiring these), and so it's not
+possible for those aspects of this crate to work on macOS.  However, this crate's support for the
+named semaphores does work on macOS because it does provide that.  This crate provides a helper to
+create *anonymous* "named" semaphores that are mostly like unnamed private semaphores, and this
+crate provides an abstraction for use across all OSs that uses the anonymous or unnamed semaphores
+depending on the OS's support, for use-cases of non-named private semaphores that need a
+workaround on macOS.

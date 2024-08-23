@@ -41,8 +41,12 @@ fn common() {
         sleep(Duration::from_secs(2));
         sem.post().unwrap();
         t.join().unwrap();
-        let val = sem.get_value();
-        assert_eq!(val, 0);
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let val = sem.get_value();
+            assert_eq!(val, 0);
+        }
     }
 
     main();
@@ -52,6 +56,10 @@ fn common() {
 #[test]
 fn rarer() {
     fn f() {
+        #[cfg_attr(
+            target_os = "macos",
+            allow(unused_variables, unit_bindings, clippy::let_unit_value)
+        )]
         let val = {
             let semaphore = pin!(Semaphore::uninit());
             let sem = semaphore.into_ref().init_with(false, 1).unwrap();
@@ -66,8 +74,13 @@ fn rarer() {
             sem.try_wait().unwrap(); // Count is at least 1, regardless of the racing.
             sem.wait().unwrap();
             sem.wait().unwrap();
-            sem.get_value()
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                sem.get_value()
+            }
         };
+        #[cfg(not(target_os = "macos"))]
         assert_eq!(val, 2);
     }
     f();
