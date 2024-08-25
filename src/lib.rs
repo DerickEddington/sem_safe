@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
 #![allow(clippy::result_unit_err)]
+// Warn about this one but avoid annoying hits for dev-dependencies.
+#![cfg_attr(test, allow(unused_crate_dependencies))]
+
 #[cfg(not(unix))]
 core::compile_error!("Only supported on POSIX.");
 #[cfg(all(target_os = "macos", not(feature = "named"), feature = "unnamed"))]

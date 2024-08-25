@@ -159,3 +159,28 @@ impl Drop for Semaphore {
         pinned_drop(unsafe { Pin::new_unchecked(self) });
     }
 }
+
+
+#[cfg(doctest)]
+mod compile_fail_tests {
+    /// ```compile_fail
+    /// use sem_safe::{unnamed::Semaphore, non_named::Semaphore as _};
+    /// let sem_unpinned = Semaphore::default();
+    /// sem_unpinned.init();
+    /// sem_unpinned.sem_ref();
+    /// ```
+    fn must_pin() {}
+
+    /// ```compile_fail
+    /// use sem_safe::{unnamed::Semaphore, non_named::Semaphore as _};
+    /// use core::pin::pin;
+    /// let sem_ref = {
+    ///     let sem = pin!(Semaphore::uninit());
+    ///     let sem = sem.into_ref();
+    ///     let sem_ref = sem.sem_ref().unwrap();
+    ///     sem_ref
+    /// };
+    /// sem_ref.post().unwrap();
+    /// ```
+    fn lifetime_enforced() {}
+}

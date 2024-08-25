@@ -26,6 +26,10 @@ errno = { version = "0.3.9", default-features = false, optional = true }
 getrandom = { version = "0.2.15", default-features = false, features = ["rdrand"], optional = true }
 libc = { version = "0.2.155", default-features = false }
 
+[dev-dependencies]
+cfg-if = "1.0.0"
+errno = { version = "0.3.9", default-features = false }
+
 [lints.rust]
 unstable_features =               "forbid"
 # Warn about desired lints that would otherwise be allowed by default.
@@ -69,6 +73,7 @@ cargo =                            { level = "warn", priority = -1 }
 absolute_paths =                   "allow"
 blanket_clippy_restriction_lints = "allow"
 default_numeric_fallback =         "allow"
+deref_by_slicing =                 "allow"
 disallowed_script_idents =         "allow"
 impl_trait_in_params =             "allow"
 implicit_return =                  "allow"

@@ -144,3 +144,20 @@ impl Drop for Semaphore {
         }
     }
 }
+
+
+#[cfg(doctest)]
+mod compile_fail_tests {
+    /// ```compile_fail
+    /// use sem_safe::{anonymous::Semaphore, non_named::Semaphore as _};
+    /// use core::pin::pin;
+    /// let sem_ref = {
+    ///     let sem = pin!(Semaphore::uninit());
+    ///     let sem = sem.into_ref();
+    ///     let sem_ref = sem.sem_ref().unwrap();
+    ///     sem_ref
+    /// };
+    /// sem_ref.post().unwrap();
+    /// ```
+    fn lifetime_enforced() {}
+}
