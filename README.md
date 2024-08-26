@@ -99,9 +99,12 @@ This crate was confirmed to build and pass its tests on (x86_64 only so far):
   - FreeBSD 14.0
   - NetBSD 9.1
 - Linux
+  - Adélie 1.0 (uses musl)
   - Alpine 3.18 (uses musl)
   - Debian 12
   - NixOS 24.05
+  - RHEL (Rocky) 9.4
+  - openSUSE 15.5
   - Ubuntu 23.10
 - Mac
   - 10.13 High Sierra
