@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+set -o nounset -o errexit # -o xtrace  # Old Bash has buggy `errexit` - comment-out for such.
+
+# This runs the tests, examples, and docs-gen with all possibilities of the crate's features.
+
+readonly CARGO_OPTS=${1:-}  # Can give a +toolchain argument, e.g.
+# shellcheck disable=SC2086  # Want word-splitting of `$CARGO_OPTS`.
+function cargo { command cargo $CARGO_OPTS "$@" ;}
+
+
+readonly FEATURES=("unnamed" "named" "anonymous" "plaster")
+FEATURES_COMBOS=()
+function features_combos {
+    local N=$1 PREFIX=${2:-}
+    for I in $(seq "$N" $((${#FEATURES[@]} - 1))); do
+        local X=${PREFIX}${FEATURES[I]}
+        FEATURES_COMBOS+=("$X")
+        features_combos $((I + 1)) "$X,"  # (Note the trailing comma.)
+    done
+}
+features_combos 0
+readonly FEATURES_COMBOS
+# for F in "${FEATURES_COMBOS[@]}"; do echo "$F"; done
+
+
+readonly COMMANDS=(
+    "test --tests"
+    "test --doc"
+    "run --example multi-proc"
+    doc
+)
+
+FAILURES=()
+SUCCESSES=()
+
+function run {
+    local C
+    for C in "${COMMANDS[@]}"; do
+        # shellcheck disable=SC2206  # Want word-splitting.
+        local CMD=(cargo $C "$@")
+        echo "Running: ${CMD[*]}"
+        if "${CMD[@]}" > /dev/null 2>&1 ; then
+            SUCCESSES+=("${CMD[*]}")
+        else
+            FAILURES+=("${CMD[*]}")
+        fi
+    done
+}
+
+
+OS=$(uname)
+readonly OS
+
+
+echo "On: $OS.  Using: $(cargo --version)."
+
+run  # First, run them with default features.
+
+for F in "${FEATURES_COMBOS[@]}"; do
+    run --no-default-features --features "$F"  # Run with all combinations of features.
+done
+
+run --no-default-features  # Lastly, run with no features.
+
+readonly FAILURES
+
+
+EXPECTED_FAILURES=(
+    # Without the "unnamed" or "anonymous" feature, can't have "plaster".
+    "cargo test --tests --no-default-features --features plaster"
+    "cargo test --tests --no-default-features --features named,plaster"
+    "cargo test --doc --no-default-features --features plaster"
+    "cargo test --doc --no-default-features --features named,plaster"
+    "cargo run --example multi-proc --no-default-features --features plaster"
+    "cargo run --example multi-proc --no-default-features --features named,plaster"
+    "cargo doc --no-default-features --features plaster"
+    "cargo doc --no-default-features --features named,plaster"
+    # Without the "unnamed" or "anonymous" feature, this example can't build.
+    "cargo run --example multi-proc --no-default-features --features named"
+    # Without at least one of the kinds of semaphore, nothing would work.
+    "cargo test --tests --no-default-features"
+    "cargo test --doc --no-default-features"
+    "cargo run --example multi-proc --no-default-features"
+    "cargo doc --no-default-features"
+)
+if [[ "$OS" =~ [Dd]arwin ]]; then
+    EXPECTED_FAILURES+=(
+        # Without the "anonymous" feature, can't have "plaster".
+        "cargo test --tests --no-default-features --features unnamed,plaster"
+        "cargo test --tests --no-default-features --features unnamed,named,plaster"
+        "cargo test --doc --no-default-features --features unnamed,plaster"
+        "cargo test --doc --no-default-features --features unnamed,named,plaster"
+        "cargo run --example multi-proc --no-default-features --features unnamed,plaster"
+        "cargo run --example multi-proc --no-default-features --features unnamed,named,plaster"
+        "cargo doc --no-default-features --features unnamed,plaster"
+        "cargo doc --no-default-features --features unnamed,named,plaster"
+        # Can't have "unnamed" by itself.
+        "cargo test --tests --no-default-features --features unnamed"
+        "cargo test --doc --no-default-features --features unnamed"
+        "cargo run --example multi-proc --no-default-features --features unnamed"
+        "cargo doc --no-default-features --features unnamed"
+        # Without the "anonymous" feature, this example can't build.
+        "cargo run --example multi-proc --no-default-features --features unnamed"
+        "cargo run --example multi-proc --no-default-features --features unnamed,named"
+        "cargo run --example multi-proc --no-default-features --features unnamed,named,plaster"
+        "cargo run --example multi-proc --no-default-features --features unnamed,plaster"
+    )
+else  # Not Mac.
+    EXPECTED_FAILURES+=(
+        # Without the "unnamed" feature, can't have "plaster".
+        "cargo test --tests --no-default-features --features anonymous,plaster"
+        "cargo test --tests --no-default-features --features named,anonymous,plaster"
+        "cargo test --doc --no-default-features --features anonymous,plaster"
+        "cargo test --doc --no-default-features --features named,anonymous,plaster"
+        "cargo run --example multi-proc --no-default-features --features anonymous,plaster"
+        "cargo run --example multi-proc --no-default-features --features named,anonymous,plaster"
+        "cargo doc --no-default-features --features anonymous,plaster"
+        "cargo doc --no-default-features --features named,anonymous,plaster"
+    )
+fi
+readonly EXPECTED_FAILURES
+
+SURPRISE_FAILURES=()
+SURPRISE_SUCCESSES=()
+
+for F in "${FAILURES[@]}"; do
+    IS_SURPRISE=true
+    for E in "${EXPECTED_FAILURES[@]}"; do
+        if [ "$F" = "$E" ]; then
+            IS_SURPRISE=false
+            break
+        fi
+    done
+    if [ "$IS_SURPRISE" = true ]; then
+        SURPRISE_FAILURES+=("$F")
+    fi
+done
+readonly SURPRISE_FAILURES
+
+for E in "${EXPECTED_FAILURES[@]}"; do
+    IS_SURPRISE=false
+    for S in "${SUCCESSES[@]}"; do
+        if [ "$E" = "$S" ]; then
+            IS_SURPRISE=true
+            break
+        fi
+    done
+    if [ "$IS_SURPRISE" = true ]; then
+        SURPRISE_SUCCESSES+=("$E")
+    fi
+done
+readonly SURPRISE_SUCCESSES
+
+if (( ${#SURPRISE_SUCCESSES[@]} >= 1 ))
+then
+    echo
+    echo "SURPRISE SUCCESSES (${#SURPRISE_SUCCESSES[@]}):"
+
+    for S in "${SURPRISE_SUCCESSES[@]}"; do
+        echo "$S"
+    done
+fi
+
+if (( ${#SURPRISE_FAILURES[@]} == 0 ))
+then
+    echo
+    echo "Success - no unexpected failures."
+else
+    echo
+    echo "FAILURES (${#SURPRISE_FAILURES[@]}):"
+
+    for F in "${SURPRISE_FAILURES[@]}"; do
+        echo "$F"
+    done
+
+    exit 1
+fi

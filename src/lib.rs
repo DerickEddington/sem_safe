@@ -1,4 +1,4 @@
-#![doc = include_str!("../README.md")]
+#![cfg_attr(not(all(doctest, not(feature = "plaster"))), doc = include_str!("../README.md"))]
 #![no_std]
 #![allow(clippy::result_unit_err)]
 // Warn about this one but avoid annoying hits for dev-dependencies.
