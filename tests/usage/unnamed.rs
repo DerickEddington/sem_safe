@@ -24,7 +24,8 @@ fn drop_and_reinit() {
     let mut sem = pin!(Semaphore::uninit());
     sem.set(Semaphore::uninit()); // Drop when uninitialized.
     {
-        let sem_ref = sem.as_ref().init_with(true, 1).unwrap_os();
+        let is_shared = cfg!(not(target_os = "openbsd"));
+        let sem_ref = sem.as_ref().init_with(is_shared, 1).unwrap_os();
         assert_eq!(sem_ref.get_value(), 1);
     }
     sem.set(Semaphore::uninit()); // Drop when initialized.

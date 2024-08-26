@@ -98,6 +98,7 @@ This crate was confirmed to build and pass its tests on (x86_64 only so far):
 - BSD
   - FreeBSD 14.0
   - NetBSD 9.1
+  - OpenBSD 7.5
 - Linux
   - Adélie 1.0 (uses musl)
   - Alpine 3.18 (uses musl)
@@ -126,3 +127,11 @@ create *anonymous* "named" semaphores that are mostly like unnamed private semap
 crate provides an abstraction for use across all OSs that uses the anonymous or unnamed semaphores
 depending on the OS's support, for use-cases of non-named private semaphores that need a
 workaround on macOS.
+
+### OpenBSD Partially Unsupportable
+
+Unfortunately, OpenBSD does not provide the shared-between-multiple-processes unnamed semaphores
+API, and so it's not possible for that aspect of this crate to work on OpenBSD.  However, this
+crate's support for the private-to-only-a-single-process unnamed semaphores and for all of the
+named semaphores (which can be shared between multiple processes) does work on OpenBSD because it
+does provide those.

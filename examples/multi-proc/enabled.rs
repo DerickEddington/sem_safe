@@ -6,7 +6,9 @@ use sem_safe::SemaphoreRef;
 // Note: Normally, when you want "non-named", you should just use the "plaster" feature (i.e. not
 // have `cfg`s like this here).  This `cfg_if` is only to enable this example to run without that
 // feature, for testing.
-cfg_if! { if #[cfg(feature = "plaster")] {
+cfg_if! { if #[cfg(target_os = "openbsd")] {
+    use sem_safe::anonymous as non_named;
+} else if #[cfg(feature = "plaster")] {
     use sem_safe::plaster::non_named;
 } else if #[cfg(all(feature = "unnamed", not(target_os = "macos")))] {
     use sem_safe::unnamed as non_named;
@@ -188,7 +190,8 @@ fn nonnamed_inter_proc_sem<'l>() -> SemaphoreRef<'l> {
     use non_named::Semaphore;
     use std::pin::Pin;
 
-    cfg_if! { if #[cfg(all(feature = "unnamed", not(target_os = "macos")))] {
+    cfg_if! { if #[cfg(all(feature = "unnamed", not(any(target_os = "macos",
+                                                        target_os = "openbsd"))))] {
         /// An unnamed semaphore must be in shared memory, to actually be shared across `fork()`.
         fn mmap_shared_sem<'l>() -> Pin<&'l mut Semaphore> {
             use std::{mem::{align_of, size_of, MaybeUninit}, ptr};

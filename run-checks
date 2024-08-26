@@ -12,7 +12,7 @@ readonly FEATURES=("unnamed" "named" "anonymous" "plaster")
 FEATURES_COMBOS=()
 function features_combos {
     local N=$1 PREFIX=${2:-}
-    for I in $(seq "$N" $((${#FEATURES[@]} - 1))); do
+    for I in $(seq "$N" 1 $((${#FEATURES[@]} - 1)) 2> /dev/null); do
         local X=${PREFIX}${FEATURES[I]}
         FEATURES_COMBOS+=("$X")
         features_combos $((I + 1)) "$X,"  # (Note the trailing comma.)
@@ -116,6 +116,15 @@ else  # Not Mac.
         "cargo run --example multi-proc --no-default-features --features named,anonymous,plaster"
         "cargo doc --no-default-features --features anonymous,plaster"
         "cargo doc --no-default-features --features named,anonymous,plaster"
+    )
+fi
+if [[ "$OS" =~ OpenBSD ]]; then
+    EXPECTED_FAILURES+=(
+        # Without the "anonymous" feature, this example can't build.
+        "cargo run --example multi-proc --no-default-features --features unnamed"
+        "cargo run --example multi-proc --no-default-features --features unnamed,named"
+        "cargo run --example multi-proc --no-default-features --features unnamed,named,plaster"
+        "cargo run --example multi-proc --no-default-features --features unnamed,plaster"
     )
 fi
 readonly EXPECTED_FAILURES
