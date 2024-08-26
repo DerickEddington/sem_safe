@@ -1,7 +1,7 @@
 #![allow(clippy::semicolon_inside_block)]
 
 use cfg_if::cfg_if;
-use sem_safe::{non_named::Semaphore as _, SemaphoreRef};
+use sem_safe::SemaphoreRef;
 
 // Note: Normally, when you want "non-named", you should just use the "plaster" feature (i.e. not
 // have `cfg`s like this here).  This `cfg_if` is only to enable this example to run without that
@@ -223,8 +223,10 @@ fn nonnamed_inter_proc_sem<'l>() -> SemaphoreRef<'l> {
         mmap_shared_sem().into_ref().init_with(true, 0).unwrap_os()
     }
     else if #[cfg(feature = "anonymous")] {
+        use sem_safe::non_named::Semaphore as _;
+
         static SEM_A: Semaphore = Semaphore::uninit();
         // "Named" semaphores are shared without needing to arrange our own shared memory.
-        Pin::static_ref(&SEM_A).init_with(false, 0).unwrap_os()
+        Pin::static_ref(&SEM_A).init_with(0).unwrap_os()
     } }
 }

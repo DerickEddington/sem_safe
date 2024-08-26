@@ -21,7 +21,9 @@ use core::{ffi::c_uint,
 /// the underlying semaphore as uninitialized.
 #[allow(private_bounds)]
 pub trait Semaphore: Default + Sync + Sealed {
-    /// Initialize the underlying OS semaphore and return a [`SemaphoreRef`] to it.
+    /// Initialize the underlying OS semaphore, such that it is private to the calling process
+    /// (i.e. not shared between multiple processes, unless by `fork()`), and return a
+    /// [`SemaphoreRef`] to it.
     ///
     /// Usually this should only be called once.  But this guards against multiple calls on the
     /// same instance (perhaps by multiple threads), to ensure the initialization is only done
@@ -32,11 +34,7 @@ pub trait Semaphore: Default + Sync + Sealed {
     /// by another call (perhaps by another thread).  Returns `Err(false)` if the call tried to do
     /// the initialization but there was an error with that, in which case `errno` is set to
     /// indicate the error.
-    fn init_with(
-        self: Pin<&Self>,
-        is_shared: bool,
-        sem_count: c_uint,
-    ) -> Result<SemaphoreRef<'_>, bool>;
+    fn init_with(self: Pin<&Self>, sem_count: c_uint) -> Result<SemaphoreRef<'_>, bool>;
 
     /// Get a [`SemaphoreRef`] to `self`, so that semaphore operations can be done on `self`.
     ///
@@ -47,24 +45,21 @@ pub trait Semaphore: Default + Sync + Sealed {
     /// If `self` was not previously initialized.
     fn sem_ref(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, ()>;
 
-    /// Like [`Self::init_with`] but uses `is_shared = false` and `sem_count = 0`.
+    /// Like [`Self::init_with`] but uses `sem_count = 0`.
     ///
-    /// This is a common use-case to have a semaphore that is private to the calling process
-    /// (i.e. not shared between multiple processes, unless by `fork()`) and that starts with a
-    /// "resource count" of zero so that initial waiting on it blocks waiter threads until a post
-    /// indicates to wake.
+    /// This is a common use-case to have a semaphore that starts with a "resource count" of zero
+    /// so that initial waiting on it blocks waiter threads until a post indicates to wake.
     ///
     /// # Errors
     /// Same as [`Self::init_with`].
     #[inline]
-    fn init(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, bool> { self.init_with(false, 0) }
+    fn init(self: Pin<&Self>) -> Result<SemaphoreRef<'_>, bool> { self.init_with(0) }
 
-    /// Like [`Self::try_init_with`] but uses `is_shared = false` and `sem_count = 0`, similar to
-    /// [`Self::init`].
+    /// Like [`Self::try_init_with`] but uses `sem_count = 0`, similar to [`Self::init`].
     #[must_use]
     #[inline]
     fn try_init(self: Pin<&Self>, limit: u64) -> Option<SemaphoreRef<'_>> {
-        self.try_init_with(limit, false, 0)
+        self.try_init_with(limit, 0)
     }
 
     /// Try to initialize `self`, repeatedly if necessary, if not already initialized, and return
@@ -76,10 +71,9 @@ pub trait Semaphore: Default + Sync + Sealed {
     fn try_init_with(
         self: Pin<&Self>,
         mut limit: u64,
-        is_shared: bool,
         sem_count: c_uint,
     ) -> Option<SemaphoreRef<'_>> {
-        match self.init_with(is_shared, sem_count) {
+        match self.init_with(sem_count) {
             Ok(sem_ref) => Some(sem_ref),
             Err(true) => loop {
                 // It was already initialized or another thread was in the middle of initializing

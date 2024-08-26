@@ -55,7 +55,7 @@ fn rarer() {
         let val = {
             #[allow(clippy::default_trait_access)]
             let semaphore: Pin<&mut Semaphore> = pin!(Default::default());
-            let sem = semaphore.into_ref().try_init_with(0, false, 1).unwrap();
+            let sem = semaphore.into_ref().try_init_with(0, 1).unwrap();
             thread::scope(|scope| {
                 scope.spawn(|| {
                     sem.post().unwrap_os();
@@ -100,7 +100,7 @@ fn init_failure() {
     // This value exceeds `SEM_VALUE_MAX`.
     let excessive_value = core::ffi::c_uint::MAX;
     assert!(semaphore.sem_ref().is_err());
-    let r = semaphore.init_with(false, excessive_value);
+    let r = non_named::Semaphore::init_with(semaphore, excessive_value);
     assert_eq!(r, Err(false));
     assert_eq!(errno(), libc::EINVAL);
     assert_eq!(r.map_errno().unwrap_err().kind(), io::ErrorKind::InvalidInput);
@@ -117,7 +117,7 @@ fn fmt() {
     println!("Displayed uninit: {}", semaphore.display());
     dbg!(semaphore);
     {
-        semaphore.init_with(false, 123).unwrap_os();
+        non_named::Semaphore::init_with(semaphore, 123).unwrap_os();
         println!("Displayed ready: {}", semaphore.display());
         dbg!(semaphore);
         dbg!(semaphore.sem_ref()).unwrap();
@@ -156,7 +156,7 @@ fn try_init_failure() {
     let sem = sem.into_ref();
     // This value exceeds `SEM_VALUE_MAX`.
     let excessive_value = core::ffi::c_uint::MAX;
-    let r = sem.try_init_with(u64::MAX, false, excessive_value);
+    let r = sem.try_init_with(u64::MAX, excessive_value);
     assert!(r.is_none());
 }
 

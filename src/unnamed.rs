@@ -1,6 +1,6 @@
 //! Unnamed semaphores.
 
-use crate::{non_named::{self, InitOnce},
+use crate::{non_named::{self, InitOnce, Semaphore as _},
             SemaphoreRef};
 use core::{cell::UnsafeCell,
            ffi::{c_int, c_uint},
@@ -13,8 +13,7 @@ use core::{cell::UnsafeCell,
 /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
 /// that can only be used safely.
 ///
-/// This must remain pinned for and after [`Self::init_with()`](non_named::Semaphore::init_with),
-/// because it's [not clear](
+/// This must remain pinned for and after [`Self::init_with()`], because it's [not clear](
 /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/V2_chap02.html#tag_16_09_09)
 /// if moving a `sem_t` value is permitted after it's been initialized with `sem_init()`.  Using
 /// this as a `static` item (not as `mut`able) is a common way to achieve that (via
@@ -56,7 +55,7 @@ impl Semaphore {
     /// Create an uninitialized `sem_t`.
     ///
     /// The only operations that can be done with a new instance are to [initialize](
-    /// non_named::Semaphore::init_with) it (which first requires pinning it) or drop it.
+    /// Self::init_with) it (which first requires pinning it) or drop it.
     #[inline]
     pub const fn uninit() -> Self {
         Self {
@@ -66,35 +65,15 @@ impl Semaphore {
         }
     }
 
-    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
-    /// handler.
-    fn ready_ref(self: Pin<&Self>) -> Option<Pin<&'_ UnsafeCell<libc::sem_t>>> {
-        #![allow(clippy::if_then_some_else_none)]
-        if self.init_once.is_ready() {
-            fn project_inner_init(it: &Semaphore) -> &UnsafeCell<libc::sem_t> {
-                let sem = &it.inner;
-                // SAFETY: `sem` is ready, so it was initialized correctly and successfully.
-                unsafe { MaybeUninit::assume_init_ref(sem) }
-            }
-            // SAFETY: The `.inner` field is pinned when `self` is.
-            let sem = unsafe { Pin::map_unchecked(self, project_inner_init) };
-            Some(sem)
-        } else {
-            None
-        }
-    }
-}
-
-
-impl non_named::Sealed for Semaphore {}
-
-impl non_named::Semaphore for Semaphore {
     /// Do [`sem_init()`](
     /// https://pubs.opengroup.org/onlinepubs/9799919799/functions/sem_init.html)
     /// on an underlying `sem_t`, and return a [`SemaphoreRef`] to it.
+    ///
+    /// # Errors
+    /// Same as [`non_named::Semaphore::init_with`].
     #[inline]
-    #[allow(clippy::unwrap_in_result)]
-    fn init_with(
+    #[allow(clippy::missing_panics_doc, clippy::same_name_method, clippy::unwrap_in_result)]
+    pub fn init_with(
         self: Pin<&Self>,
         is_shared: bool,
         sem_count: c_uint,
@@ -121,6 +100,34 @@ impl non_named::Semaphore for Semaphore {
             Some(Err(())) => Err(false),
             None => Err(true),
         }
+    }
+
+    /// This function is async-signal-safe, and so it's safe for this to be called from a signal
+    /// handler.
+    fn ready_ref(self: Pin<&Self>) -> Option<Pin<&'_ UnsafeCell<libc::sem_t>>> {
+        #![allow(clippy::if_then_some_else_none)]
+        if self.init_once.is_ready() {
+            fn project_inner_init(it: &Semaphore) -> &UnsafeCell<libc::sem_t> {
+                let sem = &it.inner;
+                // SAFETY: `sem` is ready, so it was initialized correctly and successfully.
+                unsafe { MaybeUninit::assume_init_ref(sem) }
+            }
+            // SAFETY: The `.inner` field is pinned when `self` is.
+            let sem = unsafe { Pin::map_unchecked(self, project_inner_init) };
+            Some(sem)
+        } else {
+            None
+        }
+    }
+}
+
+
+impl non_named::Sealed for Semaphore {}
+
+impl non_named::Semaphore for Semaphore {
+    #[inline]
+    fn init_with(self: Pin<&Self>, sem_count: c_uint) -> Result<SemaphoreRef<'_>, bool> {
+        Semaphore::init_with(self, false, sem_count)
     }
 
     #[inline]

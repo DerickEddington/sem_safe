@@ -51,22 +51,9 @@ impl non_named::Sealed for Semaphore {}
 impl non_named::Semaphore for Semaphore {
     /// Do [`named::Semaphore::anonymous_with()`] to initialize `self`, and return a
     /// [`SemaphoreRef`] to it.
-    ///
-    /// # Panics
-    /// If `is_shared == true`.  Anonymous semaphores cannot be shared between multiple processes
-    /// (except by `fork()`), because they don't have a name for other processes to open them by.
-    /// This parameter exists only to have the same function signature as
-    /// [`unnamed::Semaphore::init_with`](non_named::Semaphore::init_with), but uses of
-    /// it must always be `false`.
     #[inline]
-    #[allow(clippy::unwrap_in_result, clippy::panic_in_result_fn)]
-    fn init_with(
-        self: Pin<&Self>,
-        is_shared: bool,
-        sem_count: c_uint,
-    ) -> Result<SemaphoreRef<'_>, bool> {
-        assert!(!is_shared, "`is_shared` should always be `false`");
-
+    #[allow(clippy::unwrap_in_result)]
+    fn init_with(self: Pin<&Self>, sem_count: c_uint) -> Result<SemaphoreRef<'_>, bool> {
         let r = self.init_once.call_once(|| {
             named::Semaphore::anonymous_with(sem_count).map(|sem| {
                 // SAFETY: Within this scope there are no other references to `self.inner`'s
