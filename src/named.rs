@@ -4,6 +4,13 @@ use crate::SemaphoreRef;
 use core::{ffi::{c_uint, CStr},
            fmt::{self, Display, Formatter}};
 
+#[cfg(not(any(target_os = "illumos", target_os = "solaris")))]
+const SEM_FAILED: *mut libc::sem_t = libc::SEM_FAILED;
+#[cfg(any(target_os = "illumos", target_os = "solaris"))]
+/// The `libc` crate is missing this for these OSs.
+#[allow(clippy::as_conversions)]
+const SEM_FAILED: *mut libc::sem_t = -1_isize as *mut libc::sem_t;
+
 
 /// A "named" [semaphore](
 /// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/semaphore.h.html)
@@ -99,7 +106,7 @@ impl Semaphore {
                     unsafe { libc::sem_open(name_as, oflag, mode, value) }
                 },
             };
-            if ptr == libc::SEM_FAILED {
+            if ptr == SEM_FAILED {
                 let errno = errno::errno().0;
                 if errno == libc::EINTR {
                     continue;
@@ -320,4 +327,16 @@ impl Semaphore {
 impl Display for Semaphore {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(&self.sem_ref(), f) }
+}
+
+
+#[cfg(all(doctest, any(target_os = "illumos", target_os = "solaris")))]
+mod compile_fail_tests {
+    // If `SEM_FAILED` is ever added to `libc`, we'll want to know so we can update our dep to
+    // that and not need our own definition of it above.
+    /// ```compile_fail
+    /// let _missing = libc::SEM_FAILED;
+    /// ```
+    #[allow(non_snake_case)]
+    fn SEM_FAILED_is_missing() {}
 }
