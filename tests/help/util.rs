@@ -1,7 +1,24 @@
 #![allow(dead_code)]
 
 use core::ffi::c_int;
-use std::io;
+use std::{ffi::CString, io, process};
+
+
+pub(crate) fn name(sub: &str) -> CString { name_with(process::id(), sub) }
+
+pub(crate) fn name_with(pid: u32, sub: &str) -> CString {
+    if cfg!(target_os = "macos") {
+        const PSEMNAMLEN: usize = 31; // The max limit on Mac.
+        let s = format!("/SS-{sub}-{pid}");
+        #[allow(clippy::indexing_slicing, clippy::string_slice)]
+        let s = &s[.. (PSEMNAMLEN - 1).min(s.len())]; // `- 1` leaves room for the nul.
+        let n = CString::new(s).unwrap();
+        assert!(n.as_bytes_with_nul().len() <= PSEMNAMLEN);
+        n
+    } else {
+        CString::new(format!("/testing-sem_safe-{pid}-{sub}")).unwrap()
+    }
+}
 
 
 pub(crate) trait UnwrapOS: Sized {

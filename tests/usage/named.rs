@@ -44,8 +44,13 @@ fn basic() {
 
     let r = Semaphore::unlink(name);
     assert!(r.is_err());
-    assert_eq!(errno(), libc::ENOENT);
-    assert_eq!(r.map_errno().unwrap_err().kind(), io::ErrorKind::NotFound);
+    let (exp_errno, exp_kind) = if cfg!(target_os = "macos") {
+        (libc::EINVAL, io::ErrorKind::InvalidInput)
+    } else {
+        (libc::ENOENT, io::ErrorKind::NotFound)
+    };
+    assert_eq!(errno(), exp_errno);
+    assert_eq!(r.map_errno().unwrap_err().kind(), exp_kind);
 
     drop([s2, s3]);
     // SAFETY: There are no other instances now (because we just dropped the others). There are no

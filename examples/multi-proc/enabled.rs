@@ -20,7 +20,7 @@ use sem_safe::named;
 
 #[path = "../../tests/help/util.rs"]
 mod util;
-use util::UnwrapOS as _;
+use util::{name_with, UnwrapOS as _};
 
 
 pub(crate) fn main() {
@@ -164,8 +164,7 @@ cfg_if! { if #[cfg(feature = "named")] {
     impl NamedSem {
         fn triple(primary_pid: u32) -> [NamedSem; 3] {
             let named_sem = |name| {
-                let name = CString::new(
-                    format!("/example-sem_safe-multi-proc-{primary_pid}-{name}")).unwrap();
+                let name = name_with(primary_pid, name);
                 let sem = named::Semaphore::open(&name, named::OpenFlags::Create {
                     exclusive: false, // They race to create, and the first does it.
                     mode:      0o600,
