@@ -93,7 +93,9 @@ fn already_exists() {
 }
 
 
-#[cfg(not(any(target_os = "netbsd", target_os = "openbsd")))] // Those have SEM_VALUE_MAX=UINT_MAX
+#[cfg_attr(any(target_os = "freebsd", // This has SEM_VALUE_MAX=INT_MAX but doesn't enforce that.
+               target_os = "netbsd", target_os = "openbsd"), // These have SEM_VALUE_MAX=UINT_MAX
+           ignore)]
 #[test]
 fn excessive_value() {
     let r = Semaphore::open(&name("excessive_value"), OpenFlags::Create {

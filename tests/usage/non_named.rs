@@ -92,7 +92,9 @@ fn init_only_once() {
 }
 
 
-#[cfg(not(any(target_os = "netbsd", target_os = "openbsd")))] // Those have SEM_VALUE_MAX=UINT_MAX
+#[cfg_attr(any(target_os = "freebsd", // This has SEM_VALUE_MAX=INT_MAX but doesn't enforce that.
+               target_os = "netbsd", target_os = "openbsd"), // These have SEM_VALUE_MAX=UINT_MAX
+           ignore)]
 #[test]
 fn init_failure() {
     static SEMAPHORE: Semaphore = Semaphore::uninit();
@@ -149,7 +151,9 @@ fn memory_ordering() {
 }
 
 
-#[cfg(not(any(target_os = "netbsd", target_os = "openbsd")))] // Those have SEM_VALUE_MAX=UINT_MAX
+#[cfg_attr(any(target_os = "freebsd", // This has SEM_VALUE_MAX=INT_MAX but doesn't enforce that.
+               target_os = "netbsd", target_os = "openbsd"), // These have SEM_VALUE_MAX=UINT_MAX
+           ignore)]
 #[test]
 fn try_init_failure() {
     let sem = pin!(Semaphore::uninit());
