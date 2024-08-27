@@ -94,7 +94,6 @@ impl Semaphore {
                 },
                 OpenFlags::Create { exclusive, mode, value } => {
                     let oflag = libc::O_CREAT | if exclusive { libc::O_EXCL } else { 0 };
-                    #[cfg(target_os = "macos")]
                     let mode = c_uint::from(mode);
                     // SAFETY: The arguments are valid.
                     unsafe { libc::sem_open(name_as, oflag, mode, value) }
