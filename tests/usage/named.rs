@@ -157,7 +157,7 @@ fn anonymous() {
     // fail because its name isn't already open.
     let _dos_attack = Semaphore::open(INIT_UNIQUE, OpenFlags::Create {
         exclusive: true,
-        mode:      0o000,
+        mode:      0o666,
         value:     666,
     })
     .unwrap_os();
