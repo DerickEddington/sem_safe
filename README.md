@@ -91,6 +91,21 @@ provides solutions to, are:
   do `sem_open()` once.  This crate uses atomics directly (because this crate is `no_std`) to
   enforce this, even if there are additional calls and perhaps from multiple threads concurrently.
 
+# Crate Features
+
+All features below are enabled by default.  All are optional, except at least one of `unnamed` or
+`named` must be enabled, and except as otherwise noted for Mac.
+
+- **unnamed** - Enables the Unnamed Semaphores of POSIX.  Unavailable on Mac and ignored there.
+- **named** - Enables the Named Semaphores of POSIX.  Required on Mac.
+- **anonymous** - Enables the crate's own semaphore abstraction that is a "named" semaphore whose
+  name doesn't exist and so can't be used, which is especially useful for non-named use-cases that
+  need a workaround on Mac.
+- **plaster** - Enables the crate's own shim that provides a uniform API for non-named use-cases
+  to be portable across Mac and all other OSs.  This "plasters over" the lack of unnamed
+  semaphores on Mac by using anonymous semaphores on Mac or using unnamed semaphores on all other
+  OSs.
+
 # Portability
 
 This crate was confirmed to build and pass its tests on (x86_64 only so far):
