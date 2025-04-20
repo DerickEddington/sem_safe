@@ -214,7 +214,7 @@ impl Semaphore {
         }
 
         impl UniqueName {
-            // Note: This shouldn't be too large, in case an OS has a shorter limit on the names.
+            // Note: This shouldn't be too large, in case an OS has a short limit on the names.
             const RAND_LEN: usize = 16; // 128-bit entropy.
             const INIT_UNIQUE: [u8; Self::RAND_LEN] = [
                 // This was generated from my `/dev/urandom`.
