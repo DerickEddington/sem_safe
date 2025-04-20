@@ -1,6 +1,6 @@
 [package]
 name = "sem_safe"
-version = "0.2.0"
+version = "0.2.1-pre"
 authors = ["Derick Eddington"]
 edition = "2021"
 rust-version = "1.75"
@@ -71,6 +71,7 @@ restriction =                      { level = "warn", priority = -1 }
 cargo =                            { level = "warn", priority = -1 }
 # Exclude (re-allow) undesired lints included in above groups.
 absolute_paths =                   "allow"
+arbitrary_source_item_ordering =   "allow"  # maybe someday
 blanket_clippy_restriction_lints = "allow"
 default_numeric_fallback =         "allow"
 deref_by_slicing =                 "allow"

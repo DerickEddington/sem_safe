@@ -299,7 +299,7 @@ impl Semaphore {
                 debug_assert!(r.is_ok(), "name unlink will succeed");
 
                 return Ok(sem);
-            };
+            }
 
             // Else: the attempted opening failed for some reason - maybe because of unusually low
             // system limits or unusually high resource usage or unusually restricted permissions,

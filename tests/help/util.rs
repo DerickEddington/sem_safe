@@ -35,6 +35,7 @@ impl<T> UnwrapOS for Result<T, ()> {
 
 impl<T> UnwrapOS for Result<T, bool> {
     type T = T;
+    #[allow(clippy::panic_in_result_fn)]
     fn map_errno(self) -> Result<Self::T, io::Error> { self.map_err(|b| assert!(!b)).map_errno() }
 }
 

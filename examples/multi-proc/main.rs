@@ -7,6 +7,7 @@
     clippy::unwrap_used,
     clippy::print_stdout,
     clippy::std_instead_of_core,
+    clippy::std_instead_of_alloc,
     unused_crate_dependencies, // Ignore the lib crate's deps that are supplied here also.
     unused_results,
 )]

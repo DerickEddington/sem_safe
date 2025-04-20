@@ -1,7 +1,11 @@
+//! Test usage of the various aspects.
+
 #![cfg(test)] // Suppress `clippy::tests_outside_test_module` lint.
 #![allow(
     clippy::assertions_on_result_states,
     clippy::unwrap_used,
+    clippy::std_instead_of_core,
+    clippy::std_instead_of_alloc,
     unused_results,
     unused_crate_dependencies // Ignore the lib crate's deps that are supplied here also.
 )]

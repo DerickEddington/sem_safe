@@ -105,7 +105,7 @@ pub trait Semaphore: Default + Sync + Sealed {
 
 struct Displayer<T>(T);
 
-impl<T: Semaphore + ?Sized> Display for Displayer<Pin<&T>> {
+impl<T: Semaphore> Display for Displayer<Pin<&T>> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0.sem_ref() {
             Ok(sem) => <SemaphoreRef<'_> as Display>::fmt(&sem, f),
